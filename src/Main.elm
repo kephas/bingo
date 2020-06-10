@@ -2,26 +2,40 @@ module Main exposing (..)
 
 import Browser
 import Element exposing (Element, centerX, column, el, layout, padding, rgb255, row, spacing, text)
+import Element.Background as Bck
 import Element.Border as Brd
+import Element.Events as Ev
 import Element.Font as Font
 import Element.Region exposing (heading)
 import Html exposing (Html)
 import Html.Attributes exposing (src)
 import List exposing (drop, take)
+import List.Extra exposing (getAt, setAt)
 
 
 
 ---- MODEL ----
 
 
+type alias Cell =
+    { ticked : Bool
+    , text : String
+    }
+
+
 type alias BingoBoard =
     { title : String
-    , cells : List String
+    , cells : List Cell
     }
 
 
 type alias Model =
-    { board : BingoBoard }
+    { board : BingoBoard
+    }
+
+
+toCell string =
+    { ticked = False, text = string }
 
 
 bingoFeministe =
@@ -37,12 +51,13 @@ bingoFeministe =
         , "C'est la théorie du djendeur"
         , "Les femmes sont fragiles"
         ]
+            |> List.map toCell
     }
 
 
 fakeBoard =
     { title = "Un bingo de test"
-    , cells = List.range 1 25 |> List.map String.fromInt
+    , cells = List.range 1 25 |> List.map (String.fromInt >> toCell)
     }
 
 
@@ -56,17 +71,27 @@ estEntier nombre =
     (abs <| nombre - (toFloat <| round nombre)) < 0.001
 
 
-decoupeListe : Int -> List a -> List (List a)
-decoupeListe taille elements =
+numerote : Int -> List a -> List ( Int, a )
+numerote start liste =
+    case liste of
+        [] ->
+            []
+
+        premier :: reste ->
+            ( start, premier ) :: numerote (start + 1) reste
+
+
+decoupeListe : Int -> Int -> List a -> List (List ( Int, a ))
+decoupeListe start taille elements =
     case elements of
         [] ->
             []
 
         _ ->
-            take taille elements :: (decoupeListe taille <| drop taille elements)
+            (take taille elements |> numerote start) :: (decoupeListe (start + taille) taille <| drop taille elements)
 
 
-squareSplit : List a -> Maybe (List (List a))
+squareSplit : List a -> Maybe (List (List ( Int, a )))
 squareSplit cells =
     let
         racine =
@@ -78,7 +103,7 @@ squareSplit cells =
             truncate racine
     in
     if estEntier racine then
-        Just <| decoupeListe tailleLigne cells
+        Just <| decoupeListe 0 tailleLigne cells
 
     else
         Nothing
@@ -89,12 +114,27 @@ squareSplit cells =
 
 
 type Msg
-    = NoOp
+    = Ticked Int
+
+
+tickCell cells num =
+    case getAt num cells of
+        Nothing ->
+            cells
+
+        Just { ticked, text } ->
+            setAt num { ticked = not ticked, text = text } cells
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
-    ( model, Cmd.none )
+    case msg of
+        Ticked num ->
+            let
+                thisBoard =
+                    model.board
+            in
+            ( { model | board = { thisBoard | cells = tickCell model.board.cells num } }, Cmd.none )
 
 
 
@@ -105,9 +145,25 @@ black =
     rgb255 0 0 0
 
 
-viewCell : String -> Element msg
-viewCell cell =
-    el [ Brd.color black, Brd.width 1, padding 20 ] <| text cell
+white =
+    rgb255 255 255 255
+
+
+pink =
+    rgb255 255 64 224
+
+
+viewCell : ( Int, Cell ) -> Element Msg
+viewCell ( num, cell ) =
+    let
+        back =
+            if cell.ticked then
+                pink
+
+            else
+                white
+    in
+    el [ Brd.color black, Brd.width 1, Bck.color back, padding 20, Ev.onClick <| Ticked num ] <| text cell.text
 
 
 viewRow oneRow =
@@ -116,7 +172,6 @@ viewRow oneRow =
         |> row [ centerX, spacing 40 ]
 
 
-viewRows : Maybe (List (List String)) -> List (Element msg)
 viewRows rows =
     case rows of
         Nothing ->

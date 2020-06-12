@@ -11,6 +11,7 @@ import Html exposing (Html)
 import Html.Attributes exposing (src)
 import List exposing (drop, take)
 import List.Extra exposing (getAt, setAt)
+import Maybe.Extra as ME
 
 
 
@@ -25,12 +26,14 @@ type alias Cell =
 
 type alias BingoBoard =
     { title : String
+    , size : Int
     , cells : List Cell
     }
 
 
 type alias Model =
     { board : BingoBoard
+    , bingo : Bool
     }
 
 
@@ -40,6 +43,7 @@ toCell string =
 
 bingoFeministe =
     { title = "Bingo féministe"
+    , size = 3
     , cells =
         [ "Faut souffrir pour être belle"
         , "Vous desservez la cause"
@@ -57,13 +61,14 @@ bingoFeministe =
 
 fakeBoard =
     { title = "Un bingo de test"
+    , size = 5
     , cells = List.range 1 25 |> List.map (String.fromInt >> toCell)
     }
 
 
 init : ( Model, Cmd Msg )
 init =
-    ( { board = bingoFeministe }, Cmd.none )
+    ( { board = bingoFeministe, bingo = False }, Cmd.none )
 
 
 estEntier : Float -> Bool
@@ -109,6 +114,76 @@ squareSplit cells =
         Nothing
 
 
+type alias Coord =
+    { row : Int
+    , col : Int
+    }
+
+
+numToCoord : Int -> Int -> Coord
+numToCoord size num =
+    { row = num // size, col = modBy size num }
+
+
+coordToNum : Int -> Coord -> Int
+coordToNum size cell =
+    cell.row * size + cell.col
+
+
+sameRow : Int -> Coord -> List Coord
+sameRow size cell =
+    List.range 0 (size - 1)
+        |> List.map (\thisCol -> { row = cell.row, col = thisCol })
+
+
+sameCol : Int -> Coord -> List Coord
+sameCol size cell =
+    List.range 0 (size - 1)
+        |> List.map (\thisRow -> { row = thisRow, col = cell.col })
+
+
+areCellsTicked : (Int -> Coord -> List Coord) -> BingoBoard -> Coord -> Maybe Bool
+areCellsTicked select board cell =
+    select board.size cell
+        |> List.map (coordToNum board.size)
+        |> List.map (\num -> getAt num board.cells)
+        |> ME.combine
+        |> Maybe.map (List.all .ticked)
+
+
+isRowTicked : BingoBoard -> Coord -> Maybe Bool
+isRowTicked =
+    areCellsTicked sameRow
+
+
+isColTicked : BingoBoard -> Coord -> Maybe Bool
+isColTicked =
+    areCellsTicked sameCol
+
+
+hasBingoAt : Int -> BingoBoard -> Bool
+hasBingoAt num board =
+    let
+        coord =
+            numToCoord board.size num
+
+        mRow =
+            isRowTicked board coord
+
+        mCol =
+            isColTicked board coord
+    in
+    case ( mRow, mCol ) of
+        ( Just True, _ ) ->
+            True
+
+        ( _, Just True ) ->
+            True
+
+        _ ->
+            False
+
+
 
 ---- UPDATE ----
 
@@ -133,8 +208,19 @@ update msg model =
             let
                 thisBoard =
                     model.board
+
+                newBoard =
+                    { thisBoard | cells = tickCell model.board.cells num }
+
+                hasBingo =
+                    hasBingoAt num newBoard
             in
-            ( { model | board = { thisBoard | cells = tickCell model.board.cells num } }, Cmd.none )
+            ( { model
+                | board = newBoard
+                , bingo = hasBingo
+              }
+            , Cmd.none
+            )
 
 
 
@@ -190,6 +276,14 @@ view model =
                         |> squareSplit
                         |> viewRows
                    )
+                ++ [ el [] <|
+                        text <|
+                            if model.bingo then
+                                "BINGO!"
+
+                            else
+                                ""
+                   ]
 
 
 

@@ -142,23 +142,102 @@ sameCol size cell =
         |> List.map (\thisRow -> { row = thisRow, col = cell.col })
 
 
-areCellsTicked : (Int -> Coord -> List Coord) -> BingoBoard -> Coord -> Maybe Bool
-areCellsTicked select board cell =
-    select board.size cell
-        |> List.map (coordToNum board.size)
-        |> List.map (\num -> getAt num board.cells)
-        |> ME.combine
-        |> Maybe.map (List.all .ticked)
+type Diagonal
+    = Slash -- /
+    | AntiSlash -- \
+
+
+diagonalStart : Diagonal -> Int -> Coord
+diagonalStart diag size =
+    case diag of
+        Slash ->
+            { row = size - 1, col = 0 }
+
+        AntiSlash ->
+            { row = 0, col = 0 }
+
+
+nextDiagonalCell : Diagonal -> Coord -> Coord
+nextDiagonalCell diag cell =
+    case diag of
+        Slash ->
+            { row = cell.row - 1, col = cell.col + 1 }
+
+        AntiSlash ->
+            { row = cell.row + 1, col = cell.col + 1 }
+
+
+nextDiagonalCells : Diagonal -> Int -> Coord -> List Coord
+nextDiagonalCells diag size cell =
+    let
+        nextCell =
+            nextDiagonalCell diag cell
+    in
+    if nextCell.col >= size then
+        [ cell ]
+
+    else
+        cell :: nextDiagonalCells diag size nextCell
+
+
+isOnDiag : Diagonal -> Int -> Coord -> Bool
+isOnDiag diag size cell =
+    case diag of
+        Slash ->
+            cell.col == size - 1 - cell.row
+
+        AntiSlash ->
+            cell.row == cell.col
+
+
+sameDiag : Diagonal -> Int -> Coord -> List Coord
+sameDiag diag size cell =
+    if isOnDiag diag size cell then
+        nextDiagonalCells diag size <| diagonalStart diag size
+
+    else
+        []
+
+
+areCellsTicked : BingoBoard -> List Coord -> Maybe Bool
+areCellsTicked board cells =
+    if cells == [] then
+        Just False
+
+    else
+        cells
+            |> List.map (coordToNum board.size)
+            |> List.map (\num -> getAt num board.cells)
+            |> ME.combine
+            |> Maybe.map (List.all .ticked)
 
 
 isRowTicked : BingoBoard -> Coord -> Maybe Bool
-isRowTicked =
-    areCellsTicked sameRow
+isRowTicked board cell =
+    sameRow board.size cell |> areCellsTicked board
 
 
 isColTicked : BingoBoard -> Coord -> Maybe Bool
-isColTicked =
-    areCellsTicked sameCol
+isColTicked board cell =
+    sameCol board.size cell |> areCellsTicked board
+
+
+isDiagTicked : BingoBoard -> Diagonal -> Coord -> Maybe Bool
+isDiagTicked board diag cell =
+    sameDiag diag board.size cell |> areCellsTicked board
+
+
+anyJustTrue : List (Maybe Bool) -> Bool
+anyJustTrue mbools =
+    case mbools of
+        [] ->
+            False
+
+        (Just True) :: _ ->
+            True
+
+        _ :: rest ->
+            anyJustTrue rest
 
 
 hasBingoAt : Int -> BingoBoard -> Bool
@@ -172,16 +251,14 @@ hasBingoAt num board =
 
         mCol =
             isColTicked board coord
+
+        mSlash =
+            isDiagTicked board Slash coord
+
+        mAntiSlash =
+            isDiagTicked board AntiSlash coord
     in
-    case ( mRow, mCol ) of
-        ( Just True, _ ) ->
-            True
-
-        ( _, Just True ) ->
-            True
-
-        _ ->
-            False
+    anyJustTrue [ mRow, mCol, mSlash, mAntiSlash ]
 
 
 

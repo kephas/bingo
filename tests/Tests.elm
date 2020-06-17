@@ -44,6 +44,23 @@ fakeBoardOneColTicked =
     }
 
 
+fakeBoardOneDiagTicked =
+    { title = "Don't care"
+    , size = 3
+    , cells =
+        [ { ticked = False, text = "0: 0,0" }
+        , { ticked = False, text = "1: 0,1" }
+        , { ticked = True, text = "2: 0,2" }
+        , { ticked = False, text = "3: 1,0" }
+        , { ticked = True, text = "4: 1,1" }
+        , { ticked = False, text = "5, 1,2" }
+        , { ticked = True, text = "6, 2,0" }
+        , { ticked = False, text = "7: 2,1" }
+        , { ticked = False, text = "8: 2,2" }
+        ]
+    }
+
+
 all : Test
 all =
     describe "Coordinate manipulations"
@@ -98,5 +115,8 @@ all =
             , test "Bingo on row" <|
                 \_ ->
                     Expect.equal (hasBingoAt 4 fakeBoardOneRowTicked) True
+            , test "Bingo on diag" <|
+                \_ ->
+                    Expect.equal (hasBingoAt 6 fakeBoardOneDiagTicked) True
             ]
         ]

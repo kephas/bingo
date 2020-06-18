@@ -1,11 +1,13 @@
 module Main exposing (..)
 
 import Browser
+import Cmd.Extra exposing (withNoCmd)
 import Element exposing (Element, centerX, column, el, layout, padding, rgb255, row, spacing, text)
 import Element.Background as Bck
 import Element.Border as Brd
 import Element.Events as Ev
 import Element.Font as Font
+import Element.Input as In
 import Element.Region exposing (heading)
 import Html exposing (Html)
 import Html.Attributes exposing (src)
@@ -34,6 +36,8 @@ type alias BingoBoard =
 type alias Model =
     { board : BingoBoard
     , bingo : Bool
+    , newSize : Int
+    , newChoices : List String
     }
 
 
@@ -68,7 +72,7 @@ fakeBoard =
 
 init : ( Model, Cmd Msg )
 init =
-    ( { board = bingoFeministe, bingo = False }, Cmd.none )
+    ( { board = bingoFeministe, bingo = False, newSize = 1, newChoices = [] }, Cmd.none )
 
 
 estEntier : Float -> Bool
@@ -267,6 +271,7 @@ hasBingoAt num board =
 
 type Msg
     = Ticked Int
+    | ChangeNewSize String
 
 
 tickCell cells num =
@@ -298,6 +303,19 @@ update msg model =
               }
             , Cmd.none
             )
+
+        ChangeNewSize strSize ->
+            withNoCmd <|
+                case strSize |> String.toInt of
+                    Nothing ->
+                        model
+
+                    Just size ->
+                        if size > 0 then
+                            { model | newSize = size }
+
+                        else
+                            model
 
 
 
@@ -360,6 +378,12 @@ view model =
 
                             else
                                 ""
+                   , In.text []
+                        { onChange = ChangeNewSize
+                        , text = String.fromInt model.newSize
+                        , placeholder = Nothing
+                        , label = In.labelLeft [] <| text "Size:"
+                        }
                    ]
 
 

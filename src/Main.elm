@@ -388,18 +388,23 @@ view model =
 
                             else
                                 ""
-                   , In.text []
+                   ]
+                ++ [row [] [In.text []
                         { onChange = ChangeNewSize
                         , text = String.fromInt model.newSize
                         , placeholder = Nothing
                         , label = In.labelLeft [] <| text "Size:"
                         }
+                   , column [] 
+                      [ el [] <| Element.html <| button [ onClick DecrementSize ] [ Html.text "-" ]
+                      , el [] <| Element.html <| button [ onClick IncrementSize ] [ Html.text "+" ]
+                      ]
                    ]
-                ++ [row [] 
-                    [ el [] <| Element.html <| button [ onClick DecrementSize ] [ Html.text "-" ]
-                    , el [] <| Element.html <| button [ onClick IncrementSize ] [ Html.text "+" ]
-                    ]
-                ]
+                  ]
+                ++ [Element.table [] { data = model.board.cells, 
+                     columns = []
+                    }
+                   ]
 
 
 

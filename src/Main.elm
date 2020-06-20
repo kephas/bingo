@@ -2,7 +2,7 @@ module Main exposing (..)
 
 import Browser
 import Cmd.Extra exposing (withNoCmd)
-import Element exposing (Element, centerX, column, el, layout, padding, rgb255, row, spacing, text)
+import Element exposing (Element, centerX, column, el, fill, fillPortion, layout, padding, rgb255, row, spacing, text, width)
 import Element.Background as Bck
 import Element.Border as Brd
 import Element.Events as Ev
@@ -81,27 +81,27 @@ estEntier nombre =
     (abs <| nombre - (toFloat <| round nombre)) < 0.001
 
 
-numerote : Int -> List a -> List ( Int, a )
-numerote start liste =
+numerote : Int -> Int -> List a -> List ( Int, Int, a )
+numerote len start liste =
     case liste of
         [] ->
             []
 
         premier :: reste ->
-            ( start, premier ) :: numerote (start + 1) reste
+            ( len, start, premier ) :: numerote len (start + 1) reste
 
 
-decoupeListe : Int -> Int -> List a -> List (List ( Int, a ))
+decoupeListe : Int -> Int -> List a -> List (List ( Int, Int, a ))
 decoupeListe start taille elements =
     case elements of
         [] ->
             []
 
         _ ->
-            (take taille elements |> numerote start) :: (decoupeListe (start + taille) taille <| drop taille elements)
+            (take taille elements |> numerote taille start) :: (decoupeListe (start + taille) taille <| drop taille elements)
 
 
-squareSplit : List a -> Maybe (List (List ( Int, a )))
+squareSplit : List a -> Maybe (List (List ( Int, Int, a )))
 squareSplit cells =
     let
         racine =
@@ -345,8 +345,8 @@ pink =
     rgb255 255 64 224
 
 
-viewCell : ( Int, Cell ) -> Element Msg
-viewCell ( num, cell ) =
+viewCell : ( Int, Int, Cell ) -> Element Msg
+viewCell ( len, num, cell ) =
     let
         back =
             if cell.ticked then
@@ -355,13 +355,13 @@ viewCell ( num, cell ) =
             else
                 white
     in
-    el [ Brd.color black, Brd.width 1, Bck.color back, padding 20, Ev.onClick <| Ticked num ] <| text cell.text
+    el [ Brd.color black, Brd.width 1, Bck.color back, padding 20, width (fillPortion len), Ev.onClick <| Ticked num ] <| text cell.text
 
 
 viewRow oneRow =
     oneRow
         |> List.map viewCell
-        |> row [ centerX, spacing 40 ]
+        |> row [ centerX, spacing 40, width fill ]
 
 
 viewRows rows =
@@ -401,10 +401,6 @@ view model =
                       ]
                    ]
                   ]
-                ++ [Element.table [] { data = model.board.cells, 
-                     columns = []
-                    }
-                   ]
 
 
 

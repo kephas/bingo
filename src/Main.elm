@@ -9,8 +9,9 @@ import Element.Events as Ev
 import Element.Font as Font
 import Element.Input as In
 import Element.Region exposing (heading)
-import Html exposing (Html)
+import Html exposing (Html, button)
 import Html.Attributes exposing (src)
+import Html.Events exposing (onClick)
 import List exposing (drop, take)
 import List.Extra exposing (getAt, setAt)
 import Maybe.Extra as ME
@@ -272,6 +273,8 @@ hasBingoAt num board =
 type Msg
     = Ticked Int
     | ChangeNewSize String
+    | IncrementSize
+    | DecrementSize
 
 
 tickCell cells num =
@@ -311,13 +314,21 @@ update msg model =
                         model
 
                     Just size ->
-                        if size > 0 then
+                        if size > 1 then
                             { model | newSize = size }
 
                         else
                             model
 
+        IncrementSize ->
+            withNoCmd <| { model | newSize = model.newSize + 1 }
 
+        DecrementSize ->
+            withNoCmd <|
+                if model.newSize > 1 then
+                    { model | newSize = model.newSize - 1 }
+                else
+                    model
 
 ---- VIEW ----
 
@@ -361,7 +372,6 @@ viewRows rows =
         Just someRows ->
             someRows |> List.map viewRow
 
-
 view : Model -> Html Msg
 view model =
     layout [] <|
@@ -385,6 +395,11 @@ view model =
                         , label = In.labelLeft [] <| text "Size:"
                         }
                    ]
+                ++ [row [] 
+                    [ el [] <| Element.html <| button [ onClick DecrementSize ] [ Html.text "-" ]
+                    , el [] <| Element.html <| button [ onClick IncrementSize ] [ Html.text "+" ]
+                    ]
+                ]
 
 
 

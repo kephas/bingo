@@ -13,7 +13,7 @@ import Html exposing (Html, button)
 import Html.Attributes exposing (src)
 import Html.Events exposing (onClick)
 import List exposing (drop, take)
-import List.Extra exposing (getAt, setAt)
+import List.Extra exposing (getAt, setAt, setIf)
 import Maybe.Extra as ME
 
 
@@ -38,6 +38,7 @@ type alias Model =
     { board : BingoBoard
     , bingo : Bool
     , newSize : Int
+    , tempChoice : String
     , newChoices : List String
     }
 
@@ -73,7 +74,7 @@ fakeBoard =
 
 init : ( Model, Cmd Msg )
 init =
-    ( { board = bingoFeministe, bingo = False, newSize = 1, newChoices = [] }, Cmd.none )
+    ( { board = bingoFeministe, bingo = False, newSize = 1, tempChoice = "", newChoices = [] }, Cmd.none )
 
 
 estEntier : Float -> Bool
@@ -275,6 +276,9 @@ type Msg
     | ChangeNewSize String
     | IncrementSize
     | DecrementSize
+    | ChangeTempChoice String
+    | AddNewChoice
+    | ChangeExistingChoice String String
 
 
 tickCell cells num =
@@ -284,6 +288,11 @@ tickCell cells num =
 
         Just { ticked, text } ->
             setAt num { ticked = not ticked, text = text } cells
+
+
+replace : a -> a -> List a -> List a
+replace oldValue newValue list =
+    setIf ((==) oldValue) newValue list
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -331,6 +340,24 @@ update msg model =
                 else
                     model
 
+        ChangeTempChoice new ->
+            { model | tempChoice = new } |> withNoCmd
+
+        AddNewChoice ->
+            withNoCmd <|
+                case model.tempChoice of
+                    "" ->
+                        model
+
+                    str ->
+                        { model
+                            | tempChoice = ""
+                            , newChoices = str :: model.newChoices
+                        }
+
+        ChangeExistingChoice old new ->
+            { model | newChoices = replace old new model.newChoices } |> withNoCmd
+
 
 
 ---- VIEW ----
@@ -376,6 +403,18 @@ viewRows rows =
             someRows |> List.map viewRow
 
 
+viewChoiceInput : String -> Element Msg
+viewChoiceInput choice =
+    row []
+        [ In.text []
+            { onChange = ChangeExistingChoice choice
+            , text = choice
+            , placeholder = Nothing
+            , label = In.labelHidden "Choice:"
+            }
+        ]
+
+
 view : Model -> Html Msg
 view model =
     layout [] <|
@@ -398,14 +437,27 @@ view model =
                             { onChange = ChangeNewSize
                             , text = String.fromInt model.newSize
                             , placeholder = Nothing
-                            , label = In.labelLeft [] <| text "Size:"
+                            , label = In.labelLeft [] <| text <| "Size: " ++ String.fromInt model.newSize ++ " x "
                             }
                         , column []
                             [ el [] <| Element.html <| button [ onClick DecrementSize ] [ Html.text "-" ]
                             , el [] <| Element.html <| button [ onClick IncrementSize ] [ Html.text "+" ]
                             ]
                         ]
+                   , row []
+                        [ In.text []
+                            { onChange = ChangeTempChoice
+                            , text = model.tempChoice
+                            , placeholder = Nothing
+                            , label = In.labelHidden "New choice:"
+                            }
+                        , In.button []
+                            { onPress = Just AddNewChoice
+                            , label = text " Add"
+                            }
+                        ]
                    ]
+                ++ List.map viewChoiceInput model.newChoices
 
 
 

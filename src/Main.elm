@@ -81,27 +81,27 @@ estEntier nombre =
     (abs <| nombre - (toFloat <| round nombre)) < 0.001
 
 
-numerote : Int -> Int -> List a -> List ( Int, Int, a )
-numerote len start liste =
+numerote : Int -> List a -> List ( Int, a )
+numerote start liste =
     case liste of
         [] ->
             []
 
         premier :: reste ->
-            ( len, start, premier ) :: numerote len (start + 1) reste
+            ( start, premier ) :: numerote (start + 1) reste
 
 
-decoupeListe : Int -> Int -> List a -> List (List ( Int, Int, a ))
+decoupeListe : Int -> Int -> List a -> List (List ( Int, a ))
 decoupeListe start taille elements =
     case elements of
         [] ->
             []
 
         _ ->
-            (take taille elements |> numerote taille start) :: (decoupeListe (start + taille) taille <| drop taille elements)
+            (take taille elements |> numerote start) :: (decoupeListe (start + taille) taille <| drop taille elements)
 
 
-squareSplit : List a -> Maybe (List (List ( Int, Int, a )))
+squareSplit : List a -> Maybe (List (List ( Int, a )))
 squareSplit cells =
     let
         racine =
@@ -327,8 +327,11 @@ update msg model =
             withNoCmd <|
                 if model.newSize > 1 then
                     { model | newSize = model.newSize - 1 }
+
                 else
                     model
+
+
 
 ---- VIEW ----
 
@@ -345,8 +348,8 @@ pink =
     rgb255 255 64 224
 
 
-viewCell : ( Int, Int, Cell ) -> Element Msg
-viewCell ( len, num, cell ) =
+viewCell : ( Int, Cell ) -> Element Msg
+viewCell ( num, cell ) =
     let
         back =
             if cell.ticked then
@@ -355,7 +358,7 @@ viewCell ( len, num, cell ) =
             else
                 white
     in
-    el [ Brd.color black, Brd.width 1, Bck.color back, padding 20, width (fillPortion len), Ev.onClick <| Ticked num ] <| text cell.text
+    el [ Brd.color black, Brd.width 1, Bck.color back, padding 20, width fill, Ev.onClick <| Ticked num ] <| text cell.text
 
 
 viewRow oneRow =
@@ -371,6 +374,7 @@ viewRows rows =
 
         Just someRows ->
             someRows |> List.map viewRow
+
 
 view : Model -> Html Msg
 view model =
@@ -389,18 +393,19 @@ view model =
                             else
                                 ""
                    ]
-                ++ [row [] [In.text []
-                        { onChange = ChangeNewSize
-                        , text = String.fromInt model.newSize
-                        , placeholder = Nothing
-                        , label = In.labelLeft [] <| text "Size:"
-                        }
-                   , column [] 
-                      [ el [] <| Element.html <| button [ onClick DecrementSize ] [ Html.text "-" ]
-                      , el [] <| Element.html <| button [ onClick IncrementSize ] [ Html.text "+" ]
-                      ]
+                ++ [ row []
+                        [ In.text []
+                            { onChange = ChangeNewSize
+                            , text = String.fromInt model.newSize
+                            , placeholder = Nothing
+                            , label = In.labelLeft [] <| text "Size:"
+                            }
+                        , column []
+                            [ el [] <| Element.html <| button [ onClick DecrementSize ] [ Html.text "-" ]
+                            , el [] <| Element.html <| button [ onClick IncrementSize ] [ Html.text "+" ]
+                            ]
+                        ]
                    ]
-                  ]
 
 
 

@@ -117,7 +117,7 @@ update msg model =
 
 viewChoiceInput : Int -> String -> Element Msg
 viewChoiceInput index choice =
-    row []
+    row [ spacing 10 ]
         [ In.text []
             { onChange = ChangeExistingChoice index
             , text = choice

@@ -1,8 +1,9 @@
 module Main exposing (..)
 
 import Browser
-import Cmd.Extra exposing (withNoCmd)
+import Cmd.Extra exposing (withCmd, withNoCmd)
 import Dict
+import Edit
 import Element exposing (Element, centerX, column, el, fill, fillPortion, layout, padding, rgb255, row, spacing, text, width)
 import Element.Background as Bck
 import Element.Border as Brd
@@ -16,6 +17,7 @@ import Html.Events exposing (onClick)
 import List exposing (drop, take)
 import List.Extra exposing (getAt, removeAt, setAt, setIf)
 import Maybe.Extra as ME
+import Platform.Cmd
 
 
 
@@ -35,23 +37,11 @@ type alias BingoBoard =
     }
 
 
-type alias BingoDraft =
-    { title : String
-    , size : Int
-    , choices : List String
-    }
-
-
 type alias Model =
     { page : Page
     , board : BingoBoard
     , bingo : Bool
-    , newTitle : String
-    , newSize : Int
-    , tempChoice : String
-    , newChoices : List String
-    , showDraftLoadMenu : Bool
-    , storedBingoDrafts : Dict.Dict String BingoDraft
+    , editModel : Edit.Model
     }
 
 
@@ -89,12 +79,14 @@ init =
     ( { page = PlayPage
       , board = bingoFeministe
       , bingo = False
-      , newTitle = ""
-      , newSize = 1
-      , tempChoice = ""
-      , newChoices = []
-      , showDraftLoadMenu = False
-      , storedBingoDrafts = Dict.empty
+      , editModel =
+            { viewMode = Edit.ViewChoices
+            , newTitle = ""
+            , newSize = 1
+            , tempChoice = ""
+            , newChoices = []
+            , storedBingoDrafts = Dict.empty
+            }
       }
     , Cmd.none
     )
@@ -301,18 +293,8 @@ type Page
 
 type Msg
     = Ticked Int
-    | ChangeNewSize String
-    | IncrementSize
-    | DecrementSize
-    | ChangeTempChoice String
-    | AddNewChoice
-    | ChangeExistingChoice Int String
-    | RemoveChoice Int
-    | SaveBingoDraft String Int (List String)
-    | ChangeNewTitle String
-    | ResetBingoDraft
-    | ShowDraftLoadMenu
     | Navigate Page
+    | EditMsg Edit.Msg
 
 
 tickCell cells num =
@@ -345,73 +327,16 @@ update msg model =
             , Cmd.none
             )
 
-        ChangeNewSize strSize ->
-            withNoCmd <|
-                case strSize |> String.toInt of
-                    Nothing ->
-                        model
-
-                    Just size ->
-                        if size > 1 then
-                            { model | newSize = size }
-
-                        else
-                            model
-
-        IncrementSize ->
-            withNoCmd <| { model | newSize = model.newSize + 1 }
-
-        DecrementSize ->
-            withNoCmd <|
-                if model.newSize > 1 then
-                    { model | newSize = model.newSize - 1 }
-
-                else
-                    model
-
-        ChangeTempChoice new ->
-            { model | tempChoice = new } |> withNoCmd
-
-        AddNewChoice ->
-            withNoCmd <|
-                case model.tempChoice of
-                    "" ->
-                        model
-
-                    str ->
-                        { model
-                            | tempChoice = ""
-                            , newChoices = str :: model.newChoices
-                        }
-
-        ChangeExistingChoice index new ->
-            { model | newChoices = setAt index new model.newChoices } |> withNoCmd
-
-        RemoveChoice index ->
-            { model | newChoices = removeAt index model.newChoices } |> withNoCmd
-
-        SaveBingoDraft title size choices ->
-            let
-                draft =
-                    { title = title, size = size, choices = choices }
-            in
-            { model | storedBingoDrafts = Dict.insert title draft model.storedBingoDrafts } |> withNoCmd
-
-        ChangeNewTitle title ->
-            { model | newTitle = title } |> withNoCmd
-
-        ResetBingoDraft ->
-            { model
-                | newTitle = ""
-                , newChoices = []
-            }
-                |> withNoCmd
-
-        ShowDraftLoadMenu ->
-            { model | showDraftLoadMenu = True } |> withNoCmd
-
         Navigate page ->
             { model | page = page } |> withNoCmd
+
+        EditMsg submsg ->
+            let
+                ( subModel, subCmd ) =
+                    Edit.update submsg model.editModel
+            in
+            { model | editModel = subModel }
+                |> withCmd (Platform.Cmd.map EditMsg subCmd)
 
 
 
@@ -458,22 +383,6 @@ viewRows rows =
             someRows |> List.map viewRow
 
 
-viewChoiceInput : Int -> String -> Element Msg
-viewChoiceInput index choice =
-    row []
-        [ In.text []
-            { onChange = ChangeExistingChoice index
-            , text = choice
-            , placeholder = Nothing
-            , label = In.labelHidden "Choice:"
-            }
-        , In.button []
-            { onPress = Just <| RemoveChoice index
-            , label = text "Delete"
-            }
-        ]
-
-
 viewPlayPage : Model -> List (Element Msg)
 viewPlayPage model =
     [ el [ heading 1, Font.size 32 ] <| text model.board.title
@@ -490,56 +399,6 @@ viewPlayPage model =
                     else
                         ""
            ]
-
-
-viewEditPage : Model -> List (Element Msg)
-viewEditPage model =
-    [ row []
-        [ In.text []
-            { onChange = ChangeNewSize
-            , text = String.fromInt model.newSize
-            , placeholder = Nothing
-            , label = In.labelLeft [] <| text <| "Size: " ++ String.fromInt model.newSize ++ " x "
-            }
-        , column []
-            [ el [] <| Element.html <| button [ onClick DecrementSize ] [ Html.text "-" ]
-            , el [] <| Element.html <| button [ onClick IncrementSize ] [ Html.text "+" ]
-            ]
-        ]
-    , row [ spacing 20 ]
-        [ In.text []
-            { onChange = ChangeNewTitle
-            , text = model.newTitle
-            , placeholder = Nothing
-            , label = In.labelLeft [] <| text "Title: "
-            }
-        , In.button []
-            { onPress = Just <| SaveBingoDraft model.newTitle model.newSize model.newChoices
-            , label = text "Save"
-            }
-        , In.button []
-            { onPress = Just <| ResetBingoDraft
-            , label = text "Reset"
-            }
-        , In.button []
-            { onPress = Just <| ShowDraftLoadMenu
-            , label = text "Load"
-            }
-        ]
-    , row []
-        [ In.text []
-            { onChange = ChangeTempChoice
-            , text = model.tempChoice
-            , placeholder = Nothing
-            , label = In.labelHidden "New choice:"
-            }
-        , In.button []
-            { onPress = Just AddNewChoice
-            , label = text " Add"
-            }
-        ]
-    ]
-        ++ List.indexedMap viewChoiceInput model.newChoices
 
 
 view : Model -> Html Msg
@@ -562,7 +421,7 @@ view model =
                             viewPlayPage model
 
                         EditPage ->
-                            viewEditPage model
+                            List.map (Element.map EditMsg) <| Edit.view model.editModel
                    )
 
 

@@ -13,7 +13,7 @@ import Html exposing (Html, button)
 import Html.Attributes exposing (src)
 import Html.Events exposing (onClick)
 import List exposing (drop, take)
-import List.Extra exposing (getAt, setAt, setIf)
+import List.Extra exposing (getAt, removeAt, setAt, setIf)
 import Maybe.Extra as ME
 
 
@@ -279,6 +279,7 @@ type Msg
     | ChangeTempChoice String
     | AddNewChoice
     | ChangeExistingChoice Int String
+    | RemoveChoice Int
 
 
 tickCell cells num =
@@ -353,6 +354,9 @@ update msg model =
         ChangeExistingChoice index new ->
             { model | newChoices = setAt index new model.newChoices } |> withNoCmd
 
+        RemoveChoice index ->
+            { model | newChoices = removeAt index model.newChoices } |> withNoCmd
+
 
 
 ---- VIEW ----
@@ -406,6 +410,10 @@ viewChoiceInput index choice =
             , text = choice
             , placeholder = Nothing
             , label = In.labelHidden "Choice:"
+            }
+        , In.button []
+            { onPress = Just <| RemoveChoice index
+            , label = text "Delete"
             }
         ]
 

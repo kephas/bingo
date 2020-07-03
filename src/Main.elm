@@ -2,6 +2,7 @@ module Main exposing (..)
 
 import Browser
 import Cmd.Extra exposing (withNoCmd)
+import Dict
 import Element exposing (Element, centerX, column, el, fill, fillPortion, layout, padding, rgb255, row, spacing, text, width)
 import Element.Background as Bck
 import Element.Border as Brd
@@ -34,12 +35,23 @@ type alias BingoBoard =
     }
 
 
+type alias BingoDraft =
+    { title : String
+    , size : Int
+    , choices : List String
+    }
+
+
 type alias Model =
-    { board : BingoBoard
+    { page : Page
+    , board : BingoBoard
     , bingo : Bool
+    , newTitle : String
     , newSize : Int
     , tempChoice : String
     , newChoices : List String
+    , showDraftLoadMenu : Bool
+    , storedBingoDrafts : Dict.Dict String BingoDraft
     }
 
 
@@ -74,7 +86,18 @@ fakeBoard =
 
 init : ( Model, Cmd Msg )
 init =
-    ( { board = bingoFeministe, bingo = False, newSize = 1, tempChoice = "", newChoices = [] }, Cmd.none )
+    ( { page = PlayPage
+      , board = bingoFeministe
+      , bingo = False
+      , newTitle = ""
+      , newSize = 1
+      , tempChoice = ""
+      , newChoices = []
+      , showDraftLoadMenu = False
+      , storedBingoDrafts = Dict.empty
+      }
+    , Cmd.none
+    )
 
 
 estEntier : Float -> Bool
@@ -271,6 +294,11 @@ hasBingoAt num board =
 ---- UPDATE ----
 
 
+type Page
+    = PlayPage
+    | EditPage
+
+
 type Msg
     = Ticked Int
     | ChangeNewSize String
@@ -280,6 +308,11 @@ type Msg
     | AddNewChoice
     | ChangeExistingChoice Int String
     | RemoveChoice Int
+    | SaveBingoDraft String Int (List String)
+    | ChangeNewTitle String
+    | ResetBingoDraft
+    | ShowDraftLoadMenu
+    | Navigate Page
 
 
 tickCell cells num =
@@ -357,6 +390,29 @@ update msg model =
         RemoveChoice index ->
             { model | newChoices = removeAt index model.newChoices } |> withNoCmd
 
+        SaveBingoDraft title size choices ->
+            let
+                draft =
+                    { title = title, size = size, choices = choices }
+            in
+            { model | storedBingoDrafts = Dict.insert title draft model.storedBingoDrafts } |> withNoCmd
+
+        ChangeNewTitle title ->
+            { model | newTitle = title } |> withNoCmd
+
+        ResetBingoDraft ->
+            { model
+                | newTitle = ""
+                , newChoices = []
+            }
+                |> withNoCmd
+
+        ShowDraftLoadMenu ->
+            { model | showDraftLoadMenu = True } |> withNoCmd
+
+        Navigate page ->
+            { model | page = page } |> withNoCmd
+
 
 
 ---- VIEW ----
@@ -418,49 +474,96 @@ viewChoiceInput index choice =
         ]
 
 
+viewPlayPage : Model -> List (Element Msg)
+viewPlayPage model =
+    [ el [ heading 1, Font.size 32 ] <| text model.board.title
+    ]
+        ++ (model.board.cells
+                |> squareSplit
+                |> viewRows
+           )
+        ++ [ el [] <|
+                text <|
+                    if model.bingo then
+                        "BINGO!"
+
+                    else
+                        ""
+           ]
+
+
+viewEditPage : Model -> List (Element Msg)
+viewEditPage model =
+    [ row []
+        [ In.text []
+            { onChange = ChangeNewSize
+            , text = String.fromInt model.newSize
+            , placeholder = Nothing
+            , label = In.labelLeft [] <| text <| "Size: " ++ String.fromInt model.newSize ++ " x "
+            }
+        , column []
+            [ el [] <| Element.html <| button [ onClick DecrementSize ] [ Html.text "-" ]
+            , el [] <| Element.html <| button [ onClick IncrementSize ] [ Html.text "+" ]
+            ]
+        ]
+    , row [ spacing 20 ]
+        [ In.text []
+            { onChange = ChangeNewTitle
+            , text = model.newTitle
+            , placeholder = Nothing
+            , label = In.labelLeft [] <| text "Title: "
+            }
+        , In.button []
+            { onPress = Just <| SaveBingoDraft model.newTitle model.newSize model.newChoices
+            , label = text "Save"
+            }
+        , In.button []
+            { onPress = Just <| ResetBingoDraft
+            , label = text "Reset"
+            }
+        , In.button []
+            { onPress = Just <| ShowDraftLoadMenu
+            , label = text "Load"
+            }
+        ]
+    , row []
+        [ In.text []
+            { onChange = ChangeTempChoice
+            , text = model.tempChoice
+            , placeholder = Nothing
+            , label = In.labelHidden "New choice:"
+            }
+        , In.button []
+            { onPress = Just AddNewChoice
+            , label = text " Add"
+            }
+        ]
+    ]
+        ++ List.indexedMap viewChoiceInput model.newChoices
+
+
 view : Model -> Html Msg
 view model =
     layout [] <|
         column [ centerX, spacing 40, padding 40 ] <|
-            [ el [ heading 1, Font.size 32 ] <| text model.board.title ]
-                ++ (model.board.cells
-                        |> squareSplit
-                        |> viewRows
-                   )
-                ++ [ el [] <|
-                        text <|
-                            if model.bingo then
-                                "BINGO!"
+            [ row [ padding 20, spacing 20 ]
+                [ In.button []
+                    { onPress = Just <| Navigate PlayPage
+                    , label = text "Play"
+                    }
+                , In.button []
+                    { onPress = Just <| Navigate EditPage
+                    , label = text "Edit"
+                    }
+                ]
+            ]
+                ++ (case model.page of
+                        PlayPage ->
+                            viewPlayPage model
 
-                            else
-                                ""
-                   ]
-                ++ [ row []
-                        [ In.text []
-                            { onChange = ChangeNewSize
-                            , text = String.fromInt model.newSize
-                            , placeholder = Nothing
-                            , label = In.labelLeft [] <| text <| "Size: " ++ String.fromInt model.newSize ++ " x "
-                            }
-                        , column []
-                            [ el [] <| Element.html <| button [ onClick DecrementSize ] [ Html.text "-" ]
-                            , el [] <| Element.html <| button [ onClick IncrementSize ] [ Html.text "+" ]
-                            ]
-                        ]
-                   , row []
-                        [ In.text []
-                            { onChange = ChangeTempChoice
-                            , text = model.tempChoice
-                            , placeholder = Nothing
-                            , label = In.labelHidden "New choice:"
-                            }
-                        , In.button []
-                            { onPress = Just AddNewChoice
-                            , label = text " Add"
-                            }
-                        ]
-                   ]
-                ++ List.indexedMap viewChoiceInput model.newChoices
+                        EditPage ->
+                            viewEditPage model
+                   )
 
 
 

@@ -278,7 +278,7 @@ type Msg
     | DecrementSize
     | ChangeTempChoice String
     | AddNewChoice
-    | ChangeExistingChoice String String
+    | ChangeExistingChoice Int String
 
 
 tickCell cells num =
@@ -288,11 +288,6 @@ tickCell cells num =
 
         Just { ticked, text } ->
             setAt num { ticked = not ticked, text = text } cells
-
-
-replace : a -> a -> List a -> List a
-replace oldValue newValue list =
-    setIf ((==) oldValue) newValue list
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -355,8 +350,8 @@ update msg model =
                             , newChoices = str :: model.newChoices
                         }
 
-        ChangeExistingChoice old new ->
-            { model | newChoices = replace old new model.newChoices } |> withNoCmd
+        ChangeExistingChoice index new ->
+            { model | newChoices = setAt index new model.newChoices } |> withNoCmd
 
 
 
@@ -403,11 +398,11 @@ viewRows rows =
             someRows |> List.map viewRow
 
 
-viewChoiceInput : String -> Element Msg
-viewChoiceInput choice =
+viewChoiceInput : Int -> String -> Element Msg
+viewChoiceInput index choice =
     row []
         [ In.text []
-            { onChange = ChangeExistingChoice choice
+            { onChange = ChangeExistingChoice index
             , text = choice
             , placeholder = Nothing
             , label = In.labelHidden "Choice:"
@@ -457,7 +452,7 @@ view model =
                             }
                         ]
                    ]
-                ++ List.map viewChoiceInput model.newChoices
+                ++ List.indexedMap viewChoiceInput model.newChoices
 
 
 

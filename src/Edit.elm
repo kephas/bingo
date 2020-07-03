@@ -141,8 +141,8 @@ view model =
             , label = In.labelLeft [] <| text <| "Size: " ++ String.fromInt model.newSize ++ " x "
             }
         , column []
-            [ el [] <| Element.html <| button [ onClick DecrementSize ] [ Html.text "-" ]
-            , el [] <| Element.html <| button [ onClick IncrementSize ] [ Html.text "+" ]
+            [ el [] <| Element.html <| button [ onClick IncrementSize ] [ Html.text "+" ]
+            , el [] <| Element.html <| button [ onClick DecrementSize ] [ Html.text "-" ]
             ]
         ]
     , row [ spacing 20 ]

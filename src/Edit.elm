@@ -7,6 +7,7 @@ import Element.Input as In
 import Html exposing (Html, button)
 import Html.Attributes exposing (src)
 import Html.Events exposing (onClick)
+import Json.Decode as Decode
 import List.Extra exposing (removeAt, setAt)
 
 
@@ -115,6 +116,23 @@ update msg model =
             { model | viewMode = mode } |> withNoCmd
 
 
+onEnter : msg -> Element.Attribute msg
+onEnter msg =
+    Element.htmlAttribute
+        (Html.Events.on "keyup"
+            (Decode.field "key" Decode.string
+                |> Decode.andThen
+                    (\key ->
+                        if key == "Enter" then
+                            Decode.succeed msg
+
+                        else
+                            Decode.fail "Not the enter key"
+                    )
+            )
+        )
+
+
 viewChoiceInput : Int -> String -> Element Msg
 viewChoiceInput index choice =
     row [ spacing 10 ]
@@ -165,8 +183,8 @@ view model =
             , label = text "Load"
             }
         ]
-    , row []
-        [ In.text []
+    , row [ spacing 20 ]
+        [ In.text [ onEnter AddNewChoice ]
             { onChange = ChangeTempChoice
             , text = model.tempChoice
             , placeholder = Nothing
@@ -174,7 +192,7 @@ view model =
             }
         , In.button []
             { onPress = Just AddNewChoice
-            , label = text " Add"
+            , label = text "Add"
             }
         ]
     ]

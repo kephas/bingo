@@ -2,7 +2,7 @@ module Edit exposing (..)
 
 import Cmd.Extra exposing (withNoCmd)
 import Dict
-import Element exposing (Element, column, el, row, spacing, text)
+import Element exposing (Element, column, el, fill, fillPortion, row, spacing, text, width)
 import Element.Input as In
 import Html exposing (Html, button)
 import Html.Attributes exposing (src)
@@ -178,10 +178,6 @@ view model =
             { onPress = Just <| ResetBingoDraft
             , label = text "Reset"
             }
-        , In.button []
-            { onPress = Just <| ChangeViewMode ViewLoad
-            , label = text "Load"
-            }
         ]
     , row [ spacing 20 ]
         [ In.text [ onEnter AddNewChoice ]
@@ -195,5 +191,8 @@ view model =
             , label = text "Add"
             }
         ]
+    , row [ width fill, Element.explain Debug.todo ]
+        [ column [ width <| fillPortion 2 ] <| List.indexedMap viewChoiceInput model.newChoices
+        , column [ width <| fillPortion 1 ] []
+        ]
     ]
-        ++ List.indexedMap viewChoiceInput model.newChoices

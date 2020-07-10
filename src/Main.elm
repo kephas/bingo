@@ -396,14 +396,14 @@ viewCell cellSize ( num, cell ) =
             else
                 white
     in
-    paragraph [ Brd.color black, Brd.width 1, Bck.color back, padding 20, height fill, width <| maximum cellSize fill, Ev.onClick <| Ticked num ]
+    paragraph [ centerX, Brd.color black, Brd.width 1, Bck.color back, padding 20, height fill, width <| maximum cellSize fill, Ev.onClick <| Ticked num ]
         [ text cell.text ]
 
 
 viewRow cellSize oneRow =
     oneRow
         |> List.map (viewCell cellSize)
-        |> row [ centerX, spacing 40, width fill ]
+        |> row [ spacing 40, width fill ]
 
 
 viewRows cellSize rows =
@@ -441,8 +441,8 @@ view viewportModel =
 
         KnownViewport model ->
             layout [] <|
-                row [ centerX ] <|
-                    [ column [ centerX, width (fill |> maximum (model.viewport.width // 2)), spacing 40, padding 40 ] <|
+                row [ width fill ] <|
+                    [ column [ width fill, spacing 40, padding 40 ] <|
                         [ row [ padding 20, spacing 20 ]
                             [ In.button []
                                 { onPress = Just <| Navigate PlayPage

@@ -5,7 +5,7 @@ import Browser.Dom as Dom exposing (Viewport)
 import Cmd.Extra exposing (withCmd, withNoCmd)
 import Dict
 import Edit
-import Element exposing (Element, centerX, column, el, fill, fillPortion, layout, padding, rgb255, row, spacing, text, width)
+import Element exposing (Element, centerX, centerY, column, el, fill, fillPortion, height, layout, maximum, padding, paragraph, px, rgb255, row, spacing, text, width)
 import Element.Background as Bck
 import Element.Border as Brd
 import Element.Events as Ev
@@ -386,8 +386,8 @@ pink =
     rgb255 255 64 224
 
 
-viewCell : ( Int, Cell ) -> Element Msg
-viewCell ( num, cell ) =
+viewCell : Int -> ( Int, Cell ) -> Element Msg
+viewCell cellSize ( num, cell ) =
     let
         back =
             if cell.ticked then
@@ -396,22 +396,23 @@ viewCell ( num, cell ) =
             else
                 white
     in
-    el [ Brd.color black, Brd.width 1, Bck.color back, padding 20, width fill, Ev.onClick <| Ticked num ] <| text cell.text
+    paragraph [ Brd.color black, Brd.width 1, Bck.color back, padding 20, height fill, width <| maximum cellSize fill, Ev.onClick <| Ticked num ]
+        [ text cell.text ]
 
 
-viewRow oneRow =
+viewRow cellSize oneRow =
     oneRow
-        |> List.map viewCell
+        |> List.map (viewCell cellSize)
         |> row [ centerX, spacing 40, width fill ]
 
 
-viewRows rows =
+viewRows cellSize rows =
     case rows of
         Nothing ->
             []
 
         Just someRows ->
-            someRows |> List.map viewRow
+            someRows |> List.map (viewRow cellSize)
 
 
 viewPlayPage : Model -> List (Element Msg)
@@ -420,7 +421,7 @@ viewPlayPage model =
     ]
         ++ (model.board.cells
                 |> squareSplit
-                |> viewRows
+                |> viewRows (model.viewport.width // 8)
            )
         ++ [ el [] <|
                 text <|
@@ -434,31 +435,33 @@ viewPlayPage model =
 
 view : ViewportModel -> Html Msg
 view viewportModel =
-    layout [] <|
-        column [ centerX, spacing 40, padding 40 ] <|
-            [ row [ padding 20, spacing 20 ]
-                [ In.button []
-                    { onPress = Just <| Navigate PlayPage
-                    , label = text "Play"
-                    }
-                , In.button []
-                    { onPress = Just <| Navigate EditPage
-                    , label = text "Edit"
-                    }
-                ]
-            ]
-                ++ (case viewportModel of
-                        UnknownViewport ->
-                            [ Element.none ]
+    case viewportModel of
+        UnknownViewport ->
+            layout [] Element.none
 
-                        KnownViewport model ->
-                            case model.page of
-                                PlayPage ->
-                                    viewPlayPage model
+        KnownViewport model ->
+            layout [] <|
+                row [ centerX ] <|
+                    [ column [ centerX, width (fill |> maximum (model.viewport.width // 2)), spacing 40, padding 40 ] <|
+                        [ row [ padding 20, spacing 20 ]
+                            [ In.button []
+                                { onPress = Just <| Navigate PlayPage
+                                , label = text "Play"
+                                }
+                            , In.button []
+                                { onPress = Just <| Navigate EditPage
+                                , label = text "Edit"
+                                }
+                            ]
+                        ]
+                            ++ (case model.page of
+                                    PlayPage ->
+                                        viewPlayPage model
 
-                                EditPage ->
-                                    List.map (Element.map EditMsg) <| Edit.view model.editModel
-                   )
+                                    EditPage ->
+                                        List.map (Element.map EditMsg) <| Edit.view model.editModel
+                               )
+                    ]
 
 
 

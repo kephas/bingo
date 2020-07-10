@@ -1,6 +1,7 @@
 module Main exposing (..)
 
 import Browser
+import Browser.Dom as Dom exposing (Viewport)
 import Cmd.Extra exposing (withCmd, withNoCmd)
 import Dict
 import Edit
@@ -18,6 +19,7 @@ import List exposing (drop, take)
 import List.Extra exposing (getAt, removeAt, setAt, setIf)
 import Maybe.Extra as ME
 import Platform.Cmd
+import Task
 
 
 
@@ -37,11 +39,20 @@ type alias BingoBoard =
     }
 
 
+type ViewportModel
+    = UnknownViewport
+    | KnownViewport Model
+
+
 type alias Model =
     { page : Page
     , board : BingoBoard
     , bingo : Bool
     , editModel : Edit.Model
+    , viewport :
+        { height : Int
+        , width : Int
+        }
     }
 
 
@@ -74,22 +85,27 @@ fakeBoard =
     }
 
 
-init : ( Model, Cmd Msg )
+init : ( ViewportModel, Cmd Msg )
 init =
-    ( { page = PlayPage
-      , board = bingoFeministe
-      , bingo = False
-      , editModel =
-            { viewMode = Edit.ViewChoices
-            , newTitle = ""
-            , newSize = 1
-            , tempChoice = ""
-            , newChoices = []
-            , storedBingoDrafts = Dict.empty
-            }
-      }
-    , Cmd.none
+    ( UnknownViewport
+    , Task.perform GotViewport Dom.getViewport
     )
+
+
+initialModelData =
+    { page = PlayPage
+    , board = bingoFeministe
+    , bingo = False
+    , editModel =
+        { viewMode = Edit.ViewChoices
+        , newTitle = ""
+        , newSize = 1
+        , tempChoice = ""
+        , newChoices = []
+        , storedBingoDrafts = Dict.empty
+        }
+    , viewport = { height = 0, width = 0 }
+    }
 
 
 estEntier : Float -> Bool
@@ -292,7 +308,8 @@ type Page
 
 
 type Msg
-    = Ticked Int
+    = GotViewport Viewport
+    | Ticked Int
     | Navigate Page
     | EditMsg Edit.Msg
 
@@ -306,10 +323,23 @@ tickCell cells num =
             setAt num { ticked = not ticked, text = text } cells
 
 
-update : Msg -> Model -> ( Model, Cmd Msg )
-update msg model =
-    case msg of
-        Ticked num ->
+update : Msg -> ViewportModel -> ( ViewportModel, Cmd Msg )
+update msg viewportModel =
+    case ( viewportModel, msg ) of
+        ( UnknownViewport, GotViewport viewport ) ->
+            KnownViewport
+                { initialModelData
+                    | viewport = { width = viewport.viewport.width |> round, height = viewport.viewport.height |> round }
+                }
+                |> withNoCmd
+
+        ( UnknownViewport, _ ) ->
+            UnknownViewport |> withNoCmd
+
+        ( KnownViewport _, GotViewport _ ) ->
+            viewportModel |> withNoCmd
+
+        ( KnownViewport model, Ticked num ) ->
             let
                 thisBoard =
                     model.board
@@ -320,22 +350,23 @@ update msg model =
                 hasBingo =
                     hasBingoAt num newBoard
             in
-            ( { model
-                | board = newBoard
-                , bingo = hasBingo
-              }
+            ( KnownViewport
+                { model
+                    | board = newBoard
+                    , bingo = hasBingo
+                }
             , Cmd.none
             )
 
-        Navigate page ->
-            { model | page = page } |> withNoCmd
+        ( KnownViewport model, Navigate page ) ->
+            KnownViewport { model | page = page } |> withNoCmd
 
-        EditMsg submsg ->
+        ( KnownViewport model, EditMsg submsg ) ->
             let
                 ( subModel, subCmd ) =
                     Edit.update submsg model.editModel
             in
-            { model | editModel = subModel }
+            KnownViewport { model | editModel = subModel }
                 |> withCmd (Platform.Cmd.map EditMsg subCmd)
 
 
@@ -401,8 +432,8 @@ viewPlayPage model =
            ]
 
 
-view : Model -> Html Msg
-view model =
+view : ViewportModel -> Html Msg
+view viewportModel =
     layout [] <|
         column [ centerX, spacing 40, padding 40 ] <|
             [ row [ padding 20, spacing 20 ]
@@ -416,12 +447,17 @@ view model =
                     }
                 ]
             ]
-                ++ (case model.page of
-                        PlayPage ->
-                            viewPlayPage model
+                ++ (case viewportModel of
+                        UnknownViewport ->
+                            [ Element.none ]
 
-                        EditPage ->
-                            List.map (Element.map EditMsg) <| Edit.view model.editModel
+                        KnownViewport model ->
+                            case model.page of
+                                PlayPage ->
+                                    viewPlayPage model
+
+                                EditPage ->
+                                    List.map (Element.map EditMsg) <| Edit.view model.editModel
                    )
 
 
@@ -429,7 +465,7 @@ view model =
 ---- PROGRAM ----
 
 
-main : Program () Model Msg
+main : Program () ViewportModel Msg
 main =
     Browser.element
         { view = view

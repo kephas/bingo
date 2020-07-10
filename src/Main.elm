@@ -417,7 +417,7 @@ viewRows cellSize rows =
 
 viewPlayPage : Model -> List (Element Msg)
 viewPlayPage model =
-    [ el [ heading 1, Font.size 32 ] <| text model.board.title
+    [ el [ heading 1, centerX, Font.size 32 ] <| text model.board.title
     ]
         ++ (model.board.cells
                 |> squareSplit

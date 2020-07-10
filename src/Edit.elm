@@ -85,7 +85,7 @@ update msg model =
                     str ->
                         { model
                             | tempChoice = ""
-                            , newChoices = str :: model.newChoices
+                            , newChoices = model.newChoices ++ [ str ]
                         }
 
         ChangeExistingChoice index new ->

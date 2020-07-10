@@ -135,8 +135,8 @@ onEnter msg =
 
 viewChoiceInput : Int -> String -> Element Msg
 viewChoiceInput index choice =
-    row [ spacing 10 ]
-        [ In.text []
+    row [ width fill, spacing 10 ]
+        [ In.text [ width fill ]
             { onChange = ChangeExistingChoice index
             , text = choice
             , placeholder = Nothing
@@ -179,8 +179,8 @@ view model =
             , label = text "Reset"
             }
         ]
-    , row [ spacing 20 ]
-        [ In.text [ onEnter AddNewChoice ]
+    , row [ width fill, spacing 20 ]
+        [ In.text [ width fill, onEnter AddNewChoice ]
             { onChange = ChangeTempChoice
             , text = model.tempChoice
             , placeholder = Nothing
@@ -191,7 +191,7 @@ view model =
             , label = text "Add"
             }
         ]
-    , row [ width fill, Element.explain Debug.todo ]
+    , row [ width fill ]
         [ column [ width <| fillPortion 2 ] <| List.indexedMap viewChoiceInput model.newChoices
         , column [ width <| fillPortion 1 ] []
         ]

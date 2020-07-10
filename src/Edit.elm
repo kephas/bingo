@@ -2,8 +2,10 @@ module Edit exposing (..)
 
 import Cmd.Extra exposing (withNoCmd)
 import Dict
-import Element exposing (Element, column, el, fill, fillPortion, row, spacing, text, width)
+import Element exposing (Element, alignTop, centerX, column, el, fill, fillPortion, row, spacing, text, width)
+import Element.Font as Font
 import Element.Input as In
+import Element.Region exposing (heading)
 import Html exposing (Html, button)
 import Html.Attributes exposing (src)
 import Html.Events exposing (onClick)
@@ -45,6 +47,7 @@ type Msg
     | AddNewChoice
     | ChangeExistingChoice Int String
     | RemoveChoice Int
+    | LoadDraft String
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -115,6 +118,9 @@ update msg model =
         ChangeViewMode mode ->
             { model | viewMode = mode } |> withNoCmd
 
+        LoadDraft key ->
+            model |> withNoCmd
+
 
 onEnter : msg -> Element.Attribute msg
 onEnter msg =
@@ -147,6 +153,14 @@ viewChoiceInput index choice =
             , label = text "Delete"
             }
         ]
+
+
+draftLoadButton : String -> Element Msg
+draftLoadButton draftKey =
+    In.button []
+        { onPress = Just <| LoadDraft draftKey
+        , label = text draftKey
+        }
 
 
 view : Model -> List (Element Msg)
@@ -193,6 +207,11 @@ view model =
         ]
     , row [ width fill ]
         [ column [ width <| fillPortion 2 ] <| List.indexedMap viewChoiceInput model.newChoices
-        , column [ width <| fillPortion 1 ] []
+        , column [ width <| fillPortion 1, alignTop ] <|
+            [ el [ heading 1, centerX, Font.size 24 ] <| text "Saved Bingo Drafts"
+            ]
+                ++ (Dict.keys model.storedBingoDrafts
+                        |> List.map draftLoadButton
+                   )
         ]
     ]

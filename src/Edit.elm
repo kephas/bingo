@@ -119,7 +119,22 @@ update msg model =
             { model | viewMode = mode } |> withNoCmd
 
         LoadDraft key ->
-            model |> withNoCmd
+            let
+                mDraft =
+                    Dict.get key model.storedBingoDrafts
+            in
+            case mDraft of
+                Nothing ->
+                    model |> withNoCmd
+
+                Just draft ->
+                    { model
+                        | newTitle = draft.title
+                        , newSize = draft.size
+                        , tempChoice = ""
+                        , newChoices = draft.choices
+                    }
+                        |> withNoCmd
 
 
 onEnter : msg -> Element.Attribute msg
@@ -211,6 +226,7 @@ view model =
             [ el [ heading 1, centerX, Font.size 24 ] <| text "Saved Bingo Drafts"
             ]
                 ++ (Dict.keys model.storedBingoDrafts
+                        |> List.sort
                         |> List.map draftLoadButton
                    )
         ]

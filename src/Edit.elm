@@ -1,6 +1,6 @@
-module Edit exposing (..)
+port module Edit exposing (..)
 
-import Cmd.Extra exposing (withNoCmd)
+import Cmd.Extra exposing (withCmd, withNoCmd)
 import Dict
 import Element exposing (Element, alignTop, centerX, column, el, fill, fillPortion, padding, row, spacing, text, width)
 import Element.Font as Font
@@ -9,7 +9,8 @@ import Element.Region exposing (heading)
 import Html exposing (Html, button)
 import Html.Attributes exposing (src)
 import Html.Events exposing (onClick)
-import Json.Decode as Decode
+import Json.Decode as D
+import Json.Encode as E
 import List.Extra exposing (removeAt, setAt)
 
 
@@ -19,8 +20,12 @@ type alias Model =
     , newSize : Int
     , tempChoice : String
     , newChoices : List String
-    , storedBingoDrafts : Dict.Dict String BingoDraft
+    , storedBingoDrafts : BingoDraftDict
     }
+
+
+type alias BingoDraftDict =
+    Dict.Dict String BingoDraft
 
 
 type alias BingoDraft =
@@ -33,6 +38,62 @@ type alias BingoDraft =
 type ViewMode
     = ViewChoices
     | ViewLoad
+
+
+port storeDrafts : String -> Cmd msg
+
+
+port loadDrafts : (String -> msg) -> Sub msg
+
+
+encodeDraft : BingoDraft -> E.Value
+encodeDraft draft =
+    E.object
+        [ ( "title", E.string draft.title )
+        , ( "size", E.int draft.size )
+        , ( "choices", E.list E.string draft.choices )
+        ]
+
+
+encodeDrafts : BingoDraftDict -> String
+encodeDrafts dict =
+    dict
+        |> Dict.values
+        |> E.list encodeDraft
+        |> E.encode 0
+
+
+draftDecoder : D.Decoder BingoDraft
+draftDecoder =
+    D.map3 BingoDraft
+        (D.field "title" D.string)
+        (D.field "size" D.int)
+        (D.field "choices" <| D.list D.string)
+
+
+draftListDecoder : D.Decoder (List BingoDraft)
+draftListDecoder =
+    D.list draftDecoder
+
+
+decodeDrafts : String -> BingoDraftDict
+decodeDrafts json =
+    case D.decodeString draftListDecoder json of
+        Ok drafts ->
+            List.foldl (\draft dict -> Dict.insert draft.title draft dict) Dict.empty drafts
+
+        Err _ ->
+            Dict.empty
+
+
+initializeBingoDrafts : Maybe BingoDraftDict -> BingoDraftDict
+initializeBingoDrafts mdict =
+    case mdict of
+        Nothing ->
+            Dict.empty
+
+        Just dict ->
+            dict
 
 
 type Msg
@@ -102,8 +163,11 @@ update msg model =
             let
                 draft =
                     { title = title, size = size, choices = choices }
+
+                newModel =
+                    { model | storedBingoDrafts = Dict.insert title draft model.storedBingoDrafts }
             in
-            { model | storedBingoDrafts = Dict.insert title draft model.storedBingoDrafts } |> withNoCmd
+            newModel |> withCmd (newModel.storedBingoDrafts |> encodeDrafts |> storeDrafts)
 
         ChangeNewTitle title ->
             { model | newTitle = title } |> withNoCmd
@@ -141,14 +205,14 @@ onEnter : msg -> Element.Attribute msg
 onEnter msg =
     Element.htmlAttribute
         (Html.Events.on "keyup"
-            (Decode.field "key" Decode.string
-                |> Decode.andThen
+            (D.field "key" D.string
+                |> D.andThen
                     (\key ->
                         if key == "Enter" then
-                            Decode.succeed msg
+                            D.succeed msg
 
                         else
-                            Decode.fail "Not the enter key"
+                            D.fail "Not the enter key"
                     )
             )
         )

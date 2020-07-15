@@ -40,8 +40,13 @@ type alias BingoBoard =
 
 
 type ViewportModel
-    = UnknownViewport
+    = UnknownViewport EarlyModel
     | KnownViewport Model
+
+
+type alias EarlyModel =
+    { bingoDrafts : Edit.BingoDraftDict
+    }
 
 
 type alias Model =
@@ -87,7 +92,7 @@ fakeBoard =
 
 init : ( ViewportModel, Cmd Msg )
 init =
-    ( UnknownViewport
+    ( UnknownViewport { bingoDrafts = Dict.empty }
     , Task.perform GotViewport Dom.getViewport
     )
 
@@ -312,6 +317,7 @@ type Msg
     | Ticked Int
     | Navigate Page
     | EditMsg Edit.Msg
+    | LocalStorage Edit.BingoDraftDict
 
 
 tickCell cells num =
@@ -326,15 +332,27 @@ tickCell cells num =
 update : Msg -> ViewportModel -> ( ViewportModel, Cmd Msg )
 update msg viewportModel =
     case ( viewportModel, msg ) of
-        ( UnknownViewport, GotViewport viewport ) ->
+        ( UnknownViewport model, GotViewport viewport ) ->
+            let
+                initialEditModel =
+                    initialModelData.editModel
+
+                newEditModel =
+                    { initialEditModel | storedBingoDrafts = model.bingoDrafts }
+            in
             KnownViewport
                 { initialModelData
                     | viewport = { width = viewport.viewport.width |> round, height = viewport.viewport.height |> round }
+                    , editModel = newEditModel
                 }
                 |> withNoCmd
 
-        ( UnknownViewport, _ ) ->
-            UnknownViewport |> withNoCmd
+        ( UnknownViewport model, LocalStorage drafts ) ->
+            -- TODO
+            UnknownViewport { model | bingoDrafts = drafts } |> withNoCmd
+
+        ( UnknownViewport _, _ ) ->
+            viewportModel |> withNoCmd
 
         ( KnownViewport _, GotViewport _ ) ->
             viewportModel |> withNoCmd
@@ -368,6 +386,9 @@ update msg viewportModel =
             in
             KnownViewport { model | editModel = subModel }
                 |> withCmd (Platform.Cmd.map EditMsg subCmd)
+
+        ( KnownViewport _, LocalStorage _ ) ->
+            viewportModel |> withNoCmd
 
 
 
@@ -436,7 +457,7 @@ viewPlayPage model =
 view : ViewportModel -> Html Msg
 view viewportModel =
     case viewportModel of
-        UnknownViewport ->
+        UnknownViewport _ ->
             layout [] Element.none
 
         KnownViewport model ->
@@ -474,5 +495,5 @@ main =
         { view = view
         , init = \_ -> init
         , update = update
-        , subscriptions = always Sub.none
+        , subscriptions = always <| Edit.loadDrafts (\json -> LocalStorage <| Edit.decodeDrafts json)
         }

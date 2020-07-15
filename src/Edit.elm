@@ -2,7 +2,7 @@ module Edit exposing (..)
 
 import Cmd.Extra exposing (withNoCmd)
 import Dict
-import Element exposing (Element, alignTop, centerX, column, el, fill, fillPortion, row, spacing, text, width)
+import Element exposing (Element, alignTop, centerX, column, el, fill, fillPortion, padding, row, spacing, text, width)
 import Element.Font as Font
 import Element.Input as In
 import Element.Region exposing (heading)
@@ -222,7 +222,7 @@ view model =
         ]
     , row [ width fill ]
         [ column [ width <| fillPortion 2 ] <| List.indexedMap viewChoiceInput model.newChoices
-        , column [ width <| fillPortion 1, alignTop ] <|
+        , column [ width <| fillPortion 1, alignTop, padding 20, spacing 10 ] <|
             [ el [ heading 1, centerX, Font.size 24 ] <| text "Saved Bingo Drafts"
             ]
                 ++ (Dict.keys model.storedBingoDrafts

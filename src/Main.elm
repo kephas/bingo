@@ -377,8 +377,11 @@ update msg viewportModel =
                 ( subModel, effect ) =
                     Edit.update submsg model.editModel
 
+                newModelContent =
+                    { model | editModel = subModel }
+
                 newModel =
-                    KnownViewport { model | editModel = subModel }
+                    KnownViewport newModelContent
             in
             case effect of
                 Edit.NoEffect ->
@@ -388,7 +391,17 @@ update msg viewportModel =
                     newModel |> withCmd (Platform.Cmd.map EditMsg subCmd)
 
                 Edit.PlayDraft draft ->
-                    newModel |> withNoCmd
+                    KnownViewport
+                        { newModelContent
+                            | page = PlayPage
+                            , board =
+                                { title = draft.title
+                                , size = draft.size
+                                , cells = List.map toCell draft.choices
+                                }
+                            , bingo = False
+                        }
+                        |> withNoCmd
 
         ( KnownViewport model, LocalStorage drafts ) ->
             let

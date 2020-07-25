@@ -254,7 +254,11 @@ update msg model =
             storeDraftsEffect newModel
 
         PlayBingoDraft draft ->
-            ( model, PlayDraft draft )
+            let
+                playableDraft =
+                    { draft | choices = List.take (draft.size ^ 2) draft.choices }
+            in
+            ( model, PlayDraft playableDraft )
 
 
 updatePlayable : Model -> Model

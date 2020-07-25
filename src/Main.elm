@@ -348,7 +348,6 @@ update msg viewportModel =
                 |> withNoCmd
 
         ( UnknownViewport model, LocalStorage drafts ) ->
-            -- TODO
             UnknownViewport { model | bingoDrafts = drafts } |> withNoCmd
 
         ( UnknownViewport _, _ ) ->
@@ -381,14 +380,34 @@ update msg viewportModel =
 
         ( KnownViewport model, EditMsg submsg ) ->
             let
-                ( subModel, subCmd ) =
+                ( subModel, effect ) =
                     Edit.update submsg model.editModel
-            in
-            KnownViewport { model | editModel = subModel }
-                |> withCmd (Platform.Cmd.map EditMsg subCmd)
 
-        ( KnownViewport _, LocalStorage _ ) ->
-            viewportModel |> withNoCmd
+                newModel =
+                    KnownViewport { model | editModel = subModel }
+            in
+            case effect of
+                Edit.NoEffect ->
+                    newModel |> withNoCmd
+
+                Edit.EditCmd subCmd ->
+                    newModel |> withCmd (Platform.Cmd.map EditMsg subCmd)
+
+                Edit.PlayDraft draft ->
+                    newModel |> withNoCmd
+
+        ( KnownViewport model, LocalStorage drafts ) ->
+            let
+                oldEditModel =
+                    model.editModel
+
+                newEditModel =
+                    { oldEditModel | storedBingoDrafts = drafts }
+
+                newModel =
+                    { model | editModel = newEditModel }
+            in
+            KnownViewport newModel |> withNoCmd
 
 
 

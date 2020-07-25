@@ -35,6 +35,14 @@ type alias BingoDraft =
     }
 
 
+draftFromModel : Model -> BingoDraft
+draftFromModel model =
+    { title = model.newTitle
+    , size = model.newSize
+    , choices = model.newChoices
+    }
+
+
 type ViewMode
     = ViewChoices
     | ViewLoad
@@ -86,6 +94,11 @@ decodeDrafts json =
             Dict.empty
 
 
+storeDraftsEffect : Model -> ( Model, Effect )
+storeDraftsEffect model =
+    ( model, model.storedBingoDrafts |> encodeDrafts |> storeDrafts |> EditCmd )
+
+
 initializeBingoDrafts : Maybe BingoDraftDict -> BingoDraftDict
 initializeBingoDrafts mdict =
     case mdict of
@@ -101,7 +114,7 @@ type Msg
     | IncrementSize
     | ChangeNewSize String
     | ChangeNewTitle String
-    | SaveBingoDraft String Int (List String)
+    | SaveBingoDraft BingoDraft
     | ResetBingoDraft
     | ChangeViewMode ViewMode
     | ChangeTempChoice String
@@ -109,13 +122,26 @@ type Msg
     | ChangeExistingChoice Int String
     | RemoveChoice Int
     | LoadDraft String
+    | DeleteDraft String
+    | PlayBingoDraft BingoDraft
 
 
-update : Msg -> Model -> ( Model, Cmd Msg )
+type Effect
+    = NoEffect
+    | EditCmd (Cmd Msg)
+    | PlayDraft BingoDraft
+
+
+withNoEffect : Model -> ( Model, Effect )
+withNoEffect model =
+    ( model, NoEffect )
+
+
+update : Msg -> Model -> ( Model, Effect )
 update msg model =
     case msg of
         ChangeNewSize strSize ->
-            withNoCmd <|
+            withNoEffect <|
                 case strSize |> String.toInt of
                     Nothing ->
                         model
@@ -128,10 +154,10 @@ update msg model =
                             model
 
         IncrementSize ->
-            withNoCmd <| { model | newSize = model.newSize + 1 }
+            withNoEffect <| { model | newSize = model.newSize + 1 }
 
         DecrementSize ->
-            withNoCmd <|
+            withNoEffect <|
                 if model.newSize > 1 then
                     { model | newSize = model.newSize - 1 }
 
@@ -139,10 +165,10 @@ update msg model =
                     model
 
         ChangeTempChoice new ->
-            { model | tempChoice = new } |> withNoCmd
+            { model | tempChoice = new } |> withNoEffect
 
         AddNewChoice ->
-            withNoCmd <|
+            withNoEffect <|
                 case model.tempChoice of
                     "" ->
                         model
@@ -154,33 +180,30 @@ update msg model =
                         }
 
         ChangeExistingChoice index new ->
-            { model | newChoices = setAt index new model.newChoices } |> withNoCmd
+            { model | newChoices = setAt index new model.newChoices } |> withNoEffect
 
         RemoveChoice index ->
-            { model | newChoices = removeAt index model.newChoices } |> withNoCmd
+            { model | newChoices = removeAt index model.newChoices } |> withNoEffect
 
-        SaveBingoDraft title size choices ->
+        SaveBingoDraft draft ->
             let
-                draft =
-                    { title = title, size = size, choices = choices }
-
                 newModel =
-                    { model | storedBingoDrafts = Dict.insert title draft model.storedBingoDrafts }
+                    { model | storedBingoDrafts = Dict.insert draft.title draft model.storedBingoDrafts }
             in
-            newModel |> withCmd (newModel.storedBingoDrafts |> encodeDrafts |> storeDrafts)
+            storeDraftsEffect newModel
 
         ChangeNewTitle title ->
-            { model | newTitle = title } |> withNoCmd
+            { model | newTitle = title } |> withNoEffect
 
         ResetBingoDraft ->
             { model
                 | newTitle = ""
                 , newChoices = []
             }
-                |> withNoCmd
+                |> withNoEffect
 
         ChangeViewMode mode ->
-            { model | viewMode = mode } |> withNoCmd
+            { model | viewMode = mode } |> withNoEffect
 
         LoadDraft key ->
             let
@@ -189,7 +212,7 @@ update msg model =
             in
             case mDraft of
                 Nothing ->
-                    model |> withNoCmd
+                    model |> withNoEffect
 
                 Just draft ->
                     { model
@@ -198,7 +221,17 @@ update msg model =
                         , tempChoice = ""
                         , newChoices = draft.choices
                     }
-                        |> withNoCmd
+                        |> withNoEffect
+
+        DeleteDraft key ->
+            let
+                newModel =
+                    { model | storedBingoDrafts = Dict.remove key model.storedBingoDrafts }
+            in
+            storeDraftsEffect newModel
+
+        PlayBingoDraft draft ->
+            ( model, PlayDraft draft )
 
 
 onEnter : msg -> Element.Attribute msg
@@ -236,10 +269,16 @@ viewChoiceInput index choice =
 
 draftLoadButton : String -> Element Msg
 draftLoadButton draftKey =
-    In.button []
-        { onPress = Just <| LoadDraft draftKey
-        , label = text draftKey
-        }
+    row [ spacing 20 ]
+        [ In.button []
+            { onPress = Just <| LoadDraft draftKey
+            , label = text draftKey
+            }
+        , In.button []
+            { onPress = Just <| DeleteDraft draftKey
+            , label = text "X"
+            }
+        ]
 
 
 view : Model -> List (Element Msg)
@@ -264,8 +303,12 @@ view model =
             , label = In.labelLeft [] <| text "Title: "
             }
         , In.button []
-            { onPress = Just <| SaveBingoDraft model.newTitle model.newSize model.newChoices
+            { onPress = Just <| SaveBingoDraft <| draftFromModel model
             , label = text "Save"
+            }
+        , In.button []
+            { onPress = Just <| PlayBingoDraft <| draftFromModel model
+            , label = text "Play"
             }
         , In.button []
             { onPress = Just <| ResetBingoDraft

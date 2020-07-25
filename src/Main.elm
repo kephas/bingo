@@ -3,9 +3,10 @@ module Main exposing (..)
 import Browser
 import Browser.Dom as Dom exposing (Viewport)
 import Cmd.Extra exposing (withCmd, withNoCmd)
+import Colors exposing (..)
 import Dict
 import Edit
-import Element exposing (Element, centerX, centerY, column, el, fill, fillPortion, height, layout, maximum, padding, paragraph, px, rgb255, row, spacing, text, width)
+import Element exposing (Element, centerX, centerY, column, el, fill, fillPortion, height, layout, maximum, padding, paragraph, px, row, spacing, text, width)
 import Element.Background as Bck
 import Element.Border as Brd
 import Element.Events as Ev
@@ -101,14 +102,7 @@ initialModelData =
     { page = PlayPage
     , board = bingoFeministe
     , bingo = False
-    , editModel =
-        { viewMode = Edit.ViewChoices
-        , newTitle = ""
-        , newSize = 1
-        , tempChoice = ""
-        , newChoices = []
-        , storedBingoDrafts = Dict.empty
-        }
+    , editModel = Edit.init
     , viewport = { height = 0, width = 0 }
     }
 
@@ -412,18 +406,6 @@ update msg viewportModel =
 
 
 ---- VIEW ----
-
-
-black =
-    rgb255 0 0 0
-
-
-white =
-    rgb255 255 255 255
-
-
-pink =
-    rgb255 255 64 224
 
 
 viewCell : Int -> ( Int, Cell ) -> Element Msg

@@ -1,6 +1,7 @@
 port module Edit exposing (..)
 
 import Cmd.Extra exposing (withCmd, withNoCmd)
+import Colors exposing (..)
 import Dict
 import Element exposing (Element, alignTop, centerX, column, el, fill, fillPortion, padding, row, spacing, text, width)
 import Element.Font as Font
@@ -20,7 +21,20 @@ type alias Model =
     , newSize : Int
     , tempChoice : String
     , newChoices : List String
+    , newIsPlayable : Bool
     , storedBingoDrafts : BingoDraftDict
+    }
+
+
+init : Model
+init =
+    { viewMode = ViewChoices
+    , newTitle = ""
+    , newSize = 1
+    , tempChoice = ""
+    , newChoices = []
+    , newIsPlayable = False
+    , storedBingoDrafts = Dict.empty
     }
 
 
@@ -142,48 +156,55 @@ update msg model =
     case msg of
         ChangeNewSize strSize ->
             withNoEffect <|
-                case strSize |> String.toInt of
-                    Nothing ->
-                        model
-
-                    Just size ->
-                        if size > 1 then
-                            { model | newSize = size }
-
-                        else
+                updatePlayable <|
+                    case strSize |> String.toInt of
+                        Nothing ->
                             model
 
+                        Just size ->
+                            if size >= 1 then
+                                { model | newSize = size }
+
+                            else
+                                model
+
         IncrementSize ->
-            withNoEffect <| { model | newSize = model.newSize + 1 }
+            withNoEffect <|
+                updatePlayable <|
+                    { model | newSize = model.newSize + 1 }
 
         DecrementSize ->
             withNoEffect <|
-                if model.newSize > 1 then
-                    { model | newSize = model.newSize - 1 }
+                updatePlayable <|
+                    if model.newSize > 1 then
+                        { model | newSize = model.newSize - 1 }
 
-                else
-                    model
+                    else
+                        model
 
         ChangeTempChoice new ->
             { model | tempChoice = new } |> withNoEffect
 
         AddNewChoice ->
             withNoEffect <|
-                case model.tempChoice of
-                    "" ->
-                        model
+                updatePlayable <|
+                    case model.tempChoice of
+                        "" ->
+                            model
 
-                    str ->
-                        { model
-                            | tempChoice = ""
-                            , newChoices = model.newChoices ++ [ str ]
-                        }
+                        str ->
+                            { model
+                                | tempChoice = ""
+                                , newChoices = model.newChoices ++ [ str ]
+                            }
 
         ChangeExistingChoice index new ->
             { model | newChoices = setAt index new model.newChoices } |> withNoEffect
 
         RemoveChoice index ->
-            { model | newChoices = removeAt index model.newChoices } |> withNoEffect
+            { model | newChoices = removeAt index model.newChoices }
+                |> updatePlayable
+                |> withNoEffect
 
         SaveBingoDraft draft ->
             let
@@ -199,6 +220,7 @@ update msg model =
             { model
                 | newTitle = ""
                 , newChoices = []
+                , newIsPlayable = False
             }
                 |> withNoEffect
 
@@ -221,6 +243,7 @@ update msg model =
                         , tempChoice = ""
                         , newChoices = draft.choices
                     }
+                        |> updatePlayable
                         |> withNoEffect
 
         DeleteDraft key ->
@@ -232,6 +255,11 @@ update msg model =
 
         PlayBingoDraft draft ->
             ( model, PlayDraft draft )
+
+
+updatePlayable : Model -> Model
+updatePlayable model =
+    { model | newIsPlayable = model.newSize ^ 2 <= List.length model.newChoices }
 
 
 onEnter : msg -> Element.Attribute msg
@@ -306,8 +334,24 @@ view model =
             { onPress = Just <| SaveBingoDraft <| draftFromModel model
             , label = text "Save"
             }
-        , In.button []
-            { onPress = Just <| PlayBingoDraft <| draftFromModel model
+        , let
+            color =
+                Font.color <|
+                    if model.newIsPlayable then
+                        black
+
+                    else
+                        grey
+
+            action =
+                if model.newIsPlayable then
+                    Just <| PlayBingoDraft <| draftFromModel model
+
+                else
+                    Nothing
+          in
+          In.button [ color ]
+            { onPress = action
             , label = text "Play"
             }
         , In.button []

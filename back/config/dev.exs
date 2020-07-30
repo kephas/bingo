@@ -2,9 +2,9 @@ use Mix.Config
 
 # Configure your database
 config :back, Back.Repo,
-  username: "postgres",
-  password: "postgres",
-  database: "back_dev",
+  username: "bingo",
+  password: "bingo",
+  database: "bingo",
   hostname: "localhost",
   show_sensitive_data_on_connection_error: true,
   pool_size: 10

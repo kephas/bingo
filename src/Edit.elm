@@ -3,16 +3,20 @@ port module Edit exposing (..)
 import Cmd.Extra exposing (withCmd, withNoCmd)
 import Colors exposing (..)
 import Dict
-import Element exposing (Element, alignTop, centerX, column, el, fill, fillPortion, padding, row, spacing, text, width)
+import Element exposing (Element, alignTop, centerX, column, el, fill, fillPortion, none, padding, row, spacing, text, width)
 import Element.Font as Font
 import Element.Input as In
 import Element.Region exposing (heading)
 import Html exposing (Html, button)
 import Html.Attributes exposing (src)
 import Html.Events exposing (onClick)
+import Http
 import Json.Decode as D
 import Json.Encode as E
 import List.Extra exposing (removeAt, setAt)
+import Platform.Cmd as Cmd
+import Process
+import Task
 
 
 type alias Model =
@@ -23,7 +27,15 @@ type alias Model =
     , newChoices : List String
     , newIsPlayable : Bool
     , storedBingoDrafts : BingoDraftDict
+    , dataUploadState : DataUploadState
+    , uploadUrl : String
     }
+
+
+type DataUploadState
+    = Done
+    | Doing
+    | Failed
 
 
 init : Model
@@ -35,6 +47,8 @@ init =
     , newChoices = []
     , newIsPlayable = False
     , storedBingoDrafts = Dict.empty
+    , dataUploadState = Done
+    , uploadUrl = "http://localhost:4000/myendpoint"
     }
 
 
@@ -108,9 +122,35 @@ decodeDrafts json =
             Dict.empty
 
 
+fakeUploadDrafts : String -> String -> Cmd Msg
+fakeUploadDrafts _ _ =
+    Process.sleep 2000
+        |> Task.andThen (\_ -> Task.succeed <| Ok True)
+        |> Task.perform GotUploadResponse
+
+
+uploadDrafts : String -> String -> Cmd Msg
+uploadDrafts url json =
+    Http.post
+        { url = url
+        , body = Http.stringBody "application/json" json
+        , expect = Http.expectJson GotUploadResponse D.bool
+        }
+
+
 storeDraftsEffect : Model -> ( Model, Effect )
 storeDraftsEffect model =
-    ( model, model.storedBingoDrafts |> encodeDrafts |> storeDrafts |> EditCmd )
+    let
+        encodedDrafts =
+            model.storedBingoDrafts |> encodeDrafts
+    in
+    ( { model | dataUploadState = Doing }
+    , Cmd.batch
+        [ encodedDrafts |> storeDrafts
+        , encodedDrafts |> fakeUploadDrafts model.uploadUrl
+        ]
+        |> EditCmd
+    )
 
 
 initializeBingoDrafts : Maybe BingoDraftDict -> BingoDraftDict
@@ -138,6 +178,7 @@ type Msg
     | LoadDraft String
     | DeleteDraft String
     | PlayBingoDraft BingoDraft
+    | GotUploadResponse (Result Http.Error Bool)
 
 
 type Effect
@@ -260,6 +301,18 @@ update msg model =
             in
             ( model, PlayDraft playableDraft )
 
+        GotUploadResponse response ->
+            case response of
+                Ok done ->
+                    if done then
+                        { model | dataUploadState = Done } |> withNoEffect
+
+                    else
+                        { model | dataUploadState = Failed } |> withNoEffect
+
+                Err _ ->
+                    { model | dataUploadState = Failed } |> withNoEffect
+
 
 updatePlayable : Model -> Model
 updatePlayable model =
@@ -311,6 +364,19 @@ draftLoadButton draftKey =
             , label = text "X"
             }
         ]
+
+
+dataUploadMarker : DataUploadState -> Element msg
+dataUploadMarker state =
+    case state of
+        Done ->
+            none
+
+        Doing ->
+            text "…"
+
+        Failed ->
+            text "/!\\"
 
 
 view : Model -> List (Element Msg)
@@ -378,7 +444,10 @@ view model =
     , row [ width fill ]
         [ column [ width <| fillPortion 2 ] <| List.indexedMap viewChoiceInput model.newChoices
         , column [ width <| fillPortion 1, alignTop, padding 20, spacing 10 ] <|
-            [ el [ heading 1, centerX, Font.size 24 ] <| text "Saved Bingo Drafts"
+            [ row [ heading 1, centerX, Font.size 24, spacing 20 ]
+                [ text "Saved Bingo Drafts"
+                , dataUploadMarker model.dataUploadState
+                ]
             ]
                 ++ (Dict.keys model.storedBingoDrafts
                         |> List.sort

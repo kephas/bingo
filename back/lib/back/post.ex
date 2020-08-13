@@ -3,5 +3,6 @@ defmodule Back.Post do
 
   schema "posts" do
 	field :title, :string
+	belongs_to :user, Back.User
   end
 end

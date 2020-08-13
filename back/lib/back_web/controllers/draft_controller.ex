@@ -1,8 +1,9 @@
 defmodule BackWeb.DraftController do
   use BackWeb, :controller
+  alias Back.Bingodraft
 
   def view(conn, _params) do
-    json conn, [%{title: "Foo", size: 4, choices: ["bar", "baz", "quux", "quuux"]}]
+    json conn, Bingodraft.serializable_list
   end
 
   def store(conn, _params) do

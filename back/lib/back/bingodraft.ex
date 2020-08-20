@@ -13,6 +13,6 @@ defmodule Back.Bingodraft do
   end
 
   def serializable_list() do
-	Repo.all(Back.Bingodraft) |> Repo.preload(:contents) |> Enum.map &flatten/1
+	Repo.all(Back.Bingodraft) |> Repo.preload(:contents) |> Enum.map(&flatten/1)
   end
 end

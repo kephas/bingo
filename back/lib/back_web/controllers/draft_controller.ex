@@ -13,7 +13,7 @@ defmodule BackWeb.DraftController do
 	  :ok ->
 		conn
 		|> put_status(:ok)
-		|> json(%{status: "ok"})
+		|> json(true)
 
 	  :err ->
 		conn

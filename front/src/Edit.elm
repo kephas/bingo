@@ -48,7 +48,7 @@ init =
     , newIsPlayable = False
     , storedBingoDrafts = Dict.empty
     , dataUploadState = Done
-    , uploadUrl = "http://localhost:4000/myendpoint"
+    , uploadUrl = "http://localhost:4000/endpoint"
     }
 
 
@@ -122,13 +122,6 @@ decodeDrafts json =
             Dict.empty
 
 
-fakeUploadDrafts : String -> String -> Cmd Msg
-fakeUploadDrafts _ _ =
-    Process.sleep 2000
-        |> Task.andThen (\_ -> Task.succeed <| Ok True)
-        |> Task.perform GotUploadResponse
-
-
 uploadDrafts : String -> String -> Cmd Msg
 uploadDrafts url json =
     Http.post
@@ -147,7 +140,7 @@ storeDraftsEffect model =
     ( { model | dataUploadState = Doing }
     , Cmd.batch
         [ encodedDrafts |> storeDrafts
-        , encodedDrafts |> fakeUploadDrafts model.uploadUrl
+        , encodedDrafts |> uploadDrafts model.uploadUrl
         ]
         |> EditCmd
     )

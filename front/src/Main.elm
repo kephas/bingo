@@ -339,7 +339,7 @@ update msg viewportModel =
                     | viewport = { width = viewport.viewport.width |> round, height = viewport.viewport.height |> round }
                     , editModel = newEditModel
                 }
-                |> withNoCmd
+                |> withCmd (Edit.downloadDrafts newEditModel.endpointUrl |> Cmd.map EditMsg)
 
         ( UnknownViewport model, LocalStorage drafts ) ->
             UnknownViewport { model | bingoDrafts = drafts } |> withNoCmd

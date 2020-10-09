@@ -28,7 +28,7 @@ type alias Model =
     , newIsPlayable : Bool
     , storedBingoDrafts : BingoDraftDict
     , dataUploadState : DataUploadState
-    , uploadUrl : String
+    , endpointUrl : String
     }
 
 
@@ -48,7 +48,7 @@ init =
     , newIsPlayable = False
     , storedBingoDrafts = Dict.empty
     , dataUploadState = Done
-    , uploadUrl = "http://localhost:4000/endpoint"
+    , endpointUrl = "http://localhost:4000/endpoint"
     }
 
 
@@ -112,14 +112,27 @@ draftListDecoder =
     D.list draftDecoder
 
 
+draftDictDecoder : D.Decoder BingoDraftDict
+draftDictDecoder =
+    draftListDecoder
+        |> D.andThen
+            (\drafts ->
+                D.succeed <| List.foldl (\draft dict -> Dict.insert draft.title draft dict) Dict.empty drafts
+            )
+
+
 decodeDrafts : String -> BingoDraftDict
 decodeDrafts json =
-    case D.decodeString draftListDecoder json of
-        Ok drafts ->
-            List.foldl (\draft dict -> Dict.insert draft.title draft dict) Dict.empty drafts
+    D.decodeString draftDictDecoder json
+        |> Result.withDefault Dict.empty
 
-        Err _ ->
-            Dict.empty
+
+downloadDrafts : String -> Cmd Msg
+downloadDrafts url =
+    Http.get
+        { url = url
+        , expect = Http.expectJson GotDownloadResponse draftDictDecoder
+        }
 
 
 uploadDrafts : String -> String -> Cmd Msg
@@ -140,7 +153,7 @@ storeDraftsEffect model =
     ( { model | dataUploadState = Doing }
     , Cmd.batch
         [ encodedDrafts |> storeDrafts
-        , encodedDrafts |> uploadDrafts model.uploadUrl
+        , encodedDrafts |> uploadDrafts model.endpointUrl
         ]
         |> EditCmd
     )
@@ -171,6 +184,7 @@ type Msg
     | LoadDraft String
     | DeleteDraft String
     | PlayBingoDraft BingoDraft
+    | GotDownloadResponse (Result Http.Error BingoDraftDict)
     | GotUploadResponse (Result Http.Error Bool)
 
 
@@ -293,6 +307,15 @@ update msg model =
                     { draft | choices = List.take (draft.size ^ 2) draft.choices }
             in
             ( model, PlayDraft playableDraft )
+
+        GotDownloadResponse response ->
+            case response of
+                Ok drafts ->
+                    { model | storedBingoDrafts = drafts } |> withNoEffect
+
+                Err _ ->
+                    -- TODO: announce error?
+                    model |> withNoEffect
 
         GotUploadResponse response ->
             case response of

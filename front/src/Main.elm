@@ -6,7 +6,7 @@ import Cmd.Extra exposing (withCmd, withNoCmd)
 import Colors exposing (..)
 import Dict
 import Edit
-import Element exposing (Element, centerX, centerY, column, el, fill, fillPortion, height, layout, maximum, padding, paragraph, px, row, spacing, text, width)
+import Element exposing (Element, centerX, centerY, column, el, fill, fillPortion, height, layout, maximum, none, padding, paragraph, px, row, spacing, text, width)
 import Element.Background as Bck
 import Element.Border as Brd
 import Element.Events as Ev
@@ -17,7 +17,7 @@ import Html exposing (Html, button)
 import Html.Attributes exposing (src)
 import Html.Events exposing (onClick)
 import List exposing (drop, take)
-import List.Extra exposing (getAt, removeAt, setAt, setIf)
+import List.Extra exposing (getAt, remove, removeAt, setAt, setIf, uncons)
 import Maybe.Extra as ME
 import Platform.Cmd
 import Task
@@ -52,7 +52,7 @@ type alias EarlyModel =
 
 type alias Model =
     { page : Page
-    , board : BingoBoard
+    , boards : List BingoBoard
     , bingo : Bool
     , editModel : Edit.Model
     , viewport :
@@ -100,7 +100,7 @@ init =
 
 initialModelData =
     { page = PlayPage
-    , board = bingoFeministe
+    , boards = [ bingoFeministe ]
     , bingo = False
     , editModel = Edit.init
     , viewport = { height = 0, width = 0 }
@@ -309,6 +309,7 @@ type Page
 type Msg
     = GotViewport Viewport
     | Ticked Int
+    | ChangePlayBoards (List BingoBoard)
     | Navigate Page
     | EditMsg Edit.Msg
     | LocalStorage Edit.BingoDraftDict
@@ -321,6 +322,10 @@ tickCell cells num =
 
         Just { ticked, text } ->
             setAt num { ticked = not ticked, text = text } cells
+
+
+tickBoard num board =
+    { board | cells = tickCell board.cells num }
 
 
 update : Msg -> ViewportModel -> ( ViewportModel, Cmd Msg )
@@ -352,22 +357,37 @@ update msg viewportModel =
 
         ( KnownViewport model, Ticked num ) ->
             let
-                thisBoard =
-                    model.board
+                mThisBoard =
+                    List.head model.boards
 
-                newBoard =
-                    { thisBoard | cells = tickCell model.board.cells num }
+                mNewBoard =
+                    Maybe.map (tickBoard num) mThisBoard
+
+                newBoards =
+                    List.tail model.boards
+                        |> Maybe.map2 (::) mNewBoard
+                        |> Maybe.withDefault []
 
                 hasBingo =
-                    hasBingoAt num newBoard
+                    mNewBoard
+                        |> Maybe.map (hasBingoAt num)
+                        |> Maybe.withDefault False
             in
             ( KnownViewport
                 { model
-                    | board = newBoard
+                    | boards = newBoards
                     , bingo = hasBingo
                 }
             , Cmd.none
             )
+
+        ( KnownViewport model, ChangePlayBoards newBoards ) ->
+            KnownViewport
+                { model
+                    | boards = newBoards
+                    , bingo = False
+                }
+                |> withNoCmd
 
         ( KnownViewport model, Navigate page ) ->
             KnownViewport { model | page = page } |> withNoCmd
@@ -394,11 +414,12 @@ update msg viewportModel =
                     KnownViewport
                         { newModelContent
                             | page = PlayPage
-                            , board =
+                            , boards =
                                 { title = draft.title
                                 , size = draft.size
                                 , cells = List.map toCell draft.choices
                                 }
+                                    :: newModelContent.boards
                             , bingo = False
                         }
                         |> withNoCmd
@@ -450,22 +471,39 @@ viewRows cellSize rows =
             someRows |> List.map (viewRow cellSize)
 
 
+moveToHead value list =
+    value :: remove value list
+
+
+otherBoardButton currentBoards board =
+    In.button []
+        { onPress = Just <| ChangePlayBoards <| moveToHead board currentBoards
+        , label = text board.title
+        }
+
+
 viewPlayPage : Model -> List (Element Msg)
 viewPlayPage model =
-    [ el [ heading 1, centerX, Font.size 32 ] <| text model.board.title
-    ]
-        ++ (model.board.cells
-                |> squareSplit
-                |> viewRows (model.viewport.width // 8)
-           )
-        ++ [ el [] <|
-                text <|
-                    if model.bingo then
-                        "BINGO!"
+    case uncons model.boards of
+        Nothing ->
+            [ none ]
 
-                    else
-                        ""
-           ]
+        Just ( board, otherBoards ) ->
+            [ row [ spacing 20 ] <| List.map (otherBoardButton model.boards) otherBoards
+            , el [ heading 1, centerX, Font.size 32 ] <| text board.title
+            ]
+                ++ (board.cells
+                        |> squareSplit
+                        |> viewRows (model.viewport.width // 8)
+                   )
+                ++ [ el [] <|
+                        text <|
+                            if model.bingo then
+                                "BINGO!"
+
+                            else
+                                ""
+                   ]
 
 
 view : ViewportModel -> Html Msg

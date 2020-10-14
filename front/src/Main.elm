@@ -310,6 +310,7 @@ type Msg
     = GotViewport Viewport
     | Ticked Int
     | ChangePlayBoards (List BingoBoard)
+    | RemovePlayBoard BingoBoard
     | Navigate Page
     | EditMsg Edit.Msg
     | LocalStorage Edit.BingoDraftDict
@@ -326,6 +327,13 @@ tickCell cells num =
 
 tickBoard num board =
     { board | cells = tickCell board.cells num }
+
+
+changeBoards model boards =
+    { model
+        | boards = boards
+        , bingo = False
+    }
 
 
 update : Msg -> ViewportModel -> ( ViewportModel, Cmd Msg )
@@ -382,11 +390,13 @@ update msg viewportModel =
             )
 
         ( KnownViewport model, ChangePlayBoards newBoards ) ->
-            KnownViewport
-                { model
-                    | boards = newBoards
-                    , bingo = False
-                }
+            changeBoards model newBoards
+                |> KnownViewport
+                |> withNoCmd
+
+        ( KnownViewport model, RemovePlayBoard board ) ->
+            changeBoards model (remove board model.boards)
+                |> KnownViewport
                 |> withNoCmd
 
         ( KnownViewport model, Navigate page ) ->
@@ -503,6 +513,10 @@ viewPlayPage model =
 
                             else
                                 ""
+                   , In.button []
+                        { onPress = Just <| RemovePlayBoard board
+                        , label = text "Stop playing"
+                        }
                    ]
 
 

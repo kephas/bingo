@@ -6,11 +6,11 @@ var app = Elm.Main.init({
   node: document.getElementById('root')
 });
 
-const key = 'drafts';
+const key = 'savedstate';
 
-app.ports.loadDrafts.send(window.localStorage.getItem(key) || "");
+app.ports.loadSavedState.send(window.localStorage.getItem(key) || "");
 
-app.ports.storeDrafts.subscribe(function(message) {
+app.ports.storeSavedState.subscribe(function(message) {
 	window.localStorage.setItem(key, message);
 });
 

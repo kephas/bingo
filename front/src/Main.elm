@@ -1,9 +1,10 @@
-module Main exposing (..)
+port module Main exposing (..)
 
 import Browser
 import Browser.Dom as Dom exposing (Viewport)
 import Cmd.Extra exposing (withCmd, withNoCmd)
 import Colors exposing (..)
+import Common exposing (DataUploadState(..))
 import Dict
 import Edit
 import Element exposing (Element, centerX, centerY, column, el, fill, fillPortion, height, layout, maximum, none, padding, paragraph, px, row, spacing, text, width)
@@ -16,11 +17,20 @@ import Element.Region exposing (heading)
 import Html exposing (Html, button)
 import Html.Attributes exposing (src)
 import Html.Events exposing (onClick)
+import Http
+import Json.Decode as D
+import Json.Encode as E
 import List exposing (drop, take)
 import List.Extra exposing (getAt, remove, removeAt, setAt, setIf, uncons)
 import Maybe.Extra as ME
 import Platform.Cmd
 import Task
+
+
+port storeSavedState : String -> Cmd msg
+
+
+port loadSavedState : (String -> msg) -> Sub msg
 
 
 
@@ -46,7 +56,8 @@ type ViewportModel
 
 
 type alias EarlyModel =
-    { bingoDrafts : Edit.BingoDraftDict
+    { boards : List BingoBoard
+    , bingoDrafts : Edit.BingoDraftDict
     }
 
 
@@ -59,51 +70,100 @@ type alias Model =
         { height : Int
         , width : Int
         }
+    , endpointUrl : String
+    , dataUploadState : DataUploadState
     }
+
+
+
+---- JSON ----
+
+
+bingoBoardDecoder : D.Decoder BingoBoard
+bingoBoardDecoder =
+    D.map3 BingoBoard
+        (D.field "title" D.string)
+        (D.field "size" D.int)
+        (D.field "cells" <| D.list cellDecoder)
+
+
+cellDecoder : D.Decoder Cell
+cellDecoder =
+    D.map2 Cell
+        (D.field "ticked" D.bool)
+        (D.field "text" D.string)
+
+
+encodeBingoBoard : BingoBoard -> E.Value
+encodeBingoBoard board =
+    E.object
+        [ ( "title", E.string board.title )
+        , ( "size", E.int board.size )
+        , ( "cells", E.list encodeCell board.cells )
+        ]
+
+
+encodeCell : Cell -> E.Value
+encodeCell cell =
+    E.object
+        [ ( "ticked", E.bool cell.ticked )
+        , ( "text", E.string cell.text )
+        ]
+
+
+encodeSavedState : Model -> E.Value
+encodeSavedState model =
+    E.object
+        [ ( "boards", E.list encodeBingoBoard model.boards )
+        , ( "drafts", Edit.encodeDrafts model.editModel.storedBingoDrafts )
+        ]
+
+
+savedStateJson model =
+    encodeSavedState model
+        |> E.encode 0
+
+
+type alias SavedState =
+    ( List BingoBoard, Edit.BingoDraftDict )
+
+
+savedStateDecoder : D.Decoder SavedState
+savedStateDecoder =
+    D.map2 Tuple.pair
+        (D.field "boards" <| D.list bingoBoardDecoder)
+        (D.field "drafts" Edit.draftDictDecoder)
+
+
+decodeSavedState : String -> SavedState
+decodeSavedState json =
+    D.decodeString savedStateDecoder json
+        |> Result.withDefault ( [], Dict.empty )
+
+
+
+---- INIT ----
 
 
 toCell string =
     { ticked = False, text = string }
 
 
-bingoFeministe =
-    { title = "Bingo féministe"
-    , size = 3
-    , cells =
-        [ "Faut souffrir pour être belle"
-        , "Vous desservez la cause"
-        , "T'es juste mal baisée"
-        , "C'est du sexisme à l'envers"
-        , "Les poils, c'est dégeulasse"
-        , "On peut plus rien dire"
-        , "Elle l'avait quand même bien cherché"
-        , "C'est la théorie du djendeur"
-        , "Les femmes sont fragiles"
-        ]
-            |> List.map toCell
-    }
-
-
-fakeBoard =
-    { title = "Un bingo de test"
-    , size = 5
-    , cells = List.range 1 25 |> List.map (String.fromInt >> toCell)
-    }
-
-
 init : ( ViewportModel, Cmd Msg )
 init =
-    ( UnknownViewport { bingoDrafts = Dict.empty }
+    ( UnknownViewport { boards = [], bingoDrafts = Dict.empty }
     , Task.perform GotViewport Dom.getViewport
     )
 
 
 initialModelData =
     { page = PlayPage
-    , boards = [ bingoFeministe ]
+    , boards = []
     , bingo = False
     , editModel = Edit.init
     , viewport = { height = 0, width = 0 }
+    , endpointUrl = "http://localhost:4000/endpoint"
+    , dataUploadState = Done
     }
 
 
@@ -313,7 +373,9 @@ type Msg
     | RemovePlayBoard BingoBoard
     | Navigate Page
     | EditMsg Edit.Msg
-    | LocalStorage Edit.BingoDraftDict
+    | LocalStorage SavedState
+    | GotDownloadResponse (Result Http.Error SavedState)
+    | GotUploadResponse (Result Http.Error Bool)
 
 
 tickCell cells num =
@@ -351,11 +413,12 @@ update msg viewportModel =
                 { initialModelData
                     | viewport = { width = viewport.viewport.width |> round, height = viewport.viewport.height |> round }
                     , editModel = newEditModel
+                    , boards = model.boards
                 }
-                |> withCmd (Edit.downloadDrafts newEditModel.endpointUrl |> Cmd.map EditMsg)
+                |> withCmd (downloadSavedState initialModelData.endpointUrl)
 
-        ( UnknownViewport model, LocalStorage drafts ) ->
-            UnknownViewport { model | bingoDrafts = drafts } |> withNoCmd
+        ( UnknownViewport model, LocalStorage ( boards, drafts ) ) ->
+            UnknownViewport { model | boards = boards, bingoDrafts = drafts } |> withNoCmd
 
         ( UnknownViewport _, _ ) ->
             viewportModel |> withNoCmd
@@ -434,7 +497,10 @@ update msg viewportModel =
                         }
                         |> withNoCmd
 
-        ( KnownViewport model, LocalStorage drafts ) ->
+                Edit.StoreData ->
+                    newModel |> withCmd (saveState newModelContent.endpointUrl newModelContent)
+
+        ( KnownViewport model, LocalStorage ( boards, drafts ) ) ->
             let
                 oldEditModel =
                     model.editModel
@@ -443,9 +509,87 @@ update msg viewportModel =
                     { oldEditModel | storedBingoDrafts = drafts }
 
                 newModel =
-                    { model | editModel = newEditModel }
+                    { model
+                        | boards = boards
+                        , editModel = newEditModel
+                    }
             in
             KnownViewport newModel |> withNoCmd
+
+        ( KnownViewport model, GotDownloadResponse response ) ->
+            case response of
+                Ok ( boards, dict ) ->
+                    let
+                        editModel =
+                            model.editModel
+                    in
+                    KnownViewport
+                        { model
+                            | editModel = { editModel | storedBingoDrafts = dict }
+                            , boards = boards
+                        }
+                        |> withNoCmd
+
+                Err _ ->
+                    KnownViewport model |> withNoCmd
+
+        ( KnownViewport model, GotUploadResponse response ) ->
+            withNoCmd <| KnownViewport <| withUploadState model <| responseToDataUploadState response
+
+
+withUploadState : Model -> DataUploadState -> Model
+withUploadState model state =
+    let
+        editModel =
+            model.editModel
+    in
+    { model
+        | dataUploadState = Failed
+        , editModel = { editModel | dataUploadState = Failed }
+    }
+
+
+responseToDataUploadState : Result a Bool -> DataUploadState
+responseToDataUploadState response =
+    case response of
+        Ok done ->
+            if done then
+                Done
+
+            else
+                Failed
+
+        Err _ ->
+            Failed
+
+
+downloadSavedState : String -> Cmd Msg
+downloadSavedState url =
+    Http.get
+        { url = url
+        , expect = Http.expectJson GotDownloadResponse savedStateDecoder
+        }
+
+
+saveState : String -> Model -> Cmd Msg
+saveState url content =
+    let
+        data =
+            savedStateJson content
+    in
+    Cmd.batch
+        [ storeSavedState data
+        , uploadSavedState url data
+        ]
+
+
+uploadSavedState : String -> String -> Cmd Msg
+uploadSavedState url json =
+    Http.post
+        { url = url
+        , body = Http.stringBody "application/json" json
+        , expect = Http.expectJson GotUploadResponse D.bool
+        }
 
 
 
@@ -561,5 +705,5 @@ main =
         { view = view
         , init = \_ -> init
         , update = update
-        , subscriptions = always <| Edit.loadDrafts (\json -> LocalStorage <| Edit.decodeDrafts json)
+        , subscriptions = always <| loadSavedState (\json -> LocalStorage <| decodeSavedState json)
         }

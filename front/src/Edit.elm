@@ -1,7 +1,8 @@
-port module Edit exposing (..)
+module Edit exposing (..)
 
 import Cmd.Extra exposing (withCmd, withNoCmd)
 import Colors exposing (..)
+import Common exposing (DataUploadState(..))
 import Dict
 import Element exposing (Element, alignTop, centerX, column, el, fill, fillPortion, none, padding, row, spacing, text, width)
 import Element.Font as Font
@@ -28,14 +29,7 @@ type alias Model =
     , newIsPlayable : Bool
     , storedBingoDrafts : BingoDraftDict
     , dataUploadState : DataUploadState
-    , endpointUrl : String
     }
-
-
-type DataUploadState
-    = Done
-    | Doing
-    | Failed
 
 
 init : Model
@@ -48,7 +42,6 @@ init =
     , newIsPlayable = False
     , storedBingoDrafts = Dict.empty
     , dataUploadState = Done
-    , endpointUrl = "http://localhost:4000/endpoint"
     }
 
 
@@ -76,12 +69,6 @@ type ViewMode
     | ViewLoad
 
 
-port storeDrafts : String -> Cmd msg
-
-
-port loadDrafts : (String -> msg) -> Sub msg
-
-
 encodeDraft : BingoDraft -> E.Value
 encodeDraft draft =
     E.object
@@ -91,12 +78,11 @@ encodeDraft draft =
         ]
 
 
-encodeDrafts : BingoDraftDict -> String
+encodeDrafts : BingoDraftDict -> E.Value
 encodeDrafts dict =
     dict
         |> Dict.values
         |> E.list encodeDraft
-        |> E.encode 0
 
 
 draftDecoder : D.Decoder BingoDraft
@@ -127,38 +113,6 @@ decodeDrafts json =
         |> Result.withDefault Dict.empty
 
 
-downloadDrafts : String -> Cmd Msg
-downloadDrafts url =
-    Http.get
-        { url = url
-        , expect = Http.expectJson GotDownloadResponse draftDictDecoder
-        }
-
-
-uploadDrafts : String -> String -> Cmd Msg
-uploadDrafts url json =
-    Http.post
-        { url = url
-        , body = Http.stringBody "application/json" json
-        , expect = Http.expectJson GotUploadResponse D.bool
-        }
-
-
-storeDraftsEffect : Model -> ( Model, Effect )
-storeDraftsEffect model =
-    let
-        encodedDrafts =
-            model.storedBingoDrafts |> encodeDrafts
-    in
-    ( { model | dataUploadState = Doing }
-    , Cmd.batch
-        [ encodedDrafts |> storeDrafts
-        , encodedDrafts |> uploadDrafts model.endpointUrl
-        ]
-        |> EditCmd
-    )
-
-
 initializeBingoDrafts : Maybe BingoDraftDict -> BingoDraftDict
 initializeBingoDrafts mdict =
     case mdict of
@@ -184,14 +138,17 @@ type Msg
     | LoadDraft String
     | DeleteDraft String
     | PlayBingoDraft BingoDraft
-    | GotDownloadResponse (Result Http.Error BingoDraftDict)
-    | GotUploadResponse (Result Http.Error Bool)
 
 
 type Effect
     = NoEffect
     | EditCmd (Cmd Msg)
     | PlayDraft BingoDraft
+    | StoreData
+
+
+withEffect effect model =
+    ( model, effect )
 
 
 withNoEffect : Model -> ( Model, Effect )
@@ -234,7 +191,7 @@ update msg model =
             { model | tempChoice = new } |> withNoEffect
 
         AddNewChoice ->
-            withNoEffect <|
+            withEffect StoreData <|
                 updatePlayable <|
                     case model.tempChoice of
                         "" ->
@@ -247,19 +204,19 @@ update msg model =
                             }
 
         ChangeExistingChoice index new ->
-            { model | newChoices = setAt index new model.newChoices } |> withNoEffect
+            { model | newChoices = setAt index new model.newChoices } |> withEffect StoreData
 
         RemoveChoice index ->
             { model | newChoices = removeAt index model.newChoices }
                 |> updatePlayable
-                |> withNoEffect
+                |> withEffect StoreData
 
         SaveBingoDraft draft ->
             let
                 newModel =
                     { model | storedBingoDrafts = Dict.insert draft.title draft model.storedBingoDrafts }
             in
-            storeDraftsEffect newModel
+            ( newModel, StoreData )
 
         ChangeNewTitle title ->
             { model | newTitle = title } |> withNoEffect
@@ -299,7 +256,7 @@ update msg model =
                 newModel =
                     { model | storedBingoDrafts = Dict.remove key model.storedBingoDrafts }
             in
-            storeDraftsEffect newModel
+            ( newModel, StoreData )
 
         PlayBingoDraft draft ->
             let
@@ -307,27 +264,6 @@ update msg model =
                     { draft | choices = List.take (draft.size ^ 2) draft.choices }
             in
             ( model, PlayDraft playableDraft )
-
-        GotDownloadResponse response ->
-            case response of
-                Ok drafts ->
-                    { model | storedBingoDrafts = drafts } |> withNoEffect
-
-                Err _ ->
-                    -- TODO: announce error?
-                    model |> withNoEffect
-
-        GotUploadResponse response ->
-            case response of
-                Ok done ->
-                    if done then
-                        { model | dataUploadState = Done } |> withNoEffect
-
-                    else
-                        { model | dataUploadState = Failed } |> withNoEffect
-
-                Err _ ->
-                    { model | dataUploadState = Failed } |> withNoEffect
 
 
 updatePlayable : Model -> Model

@@ -162,7 +162,7 @@ initialModelData =
     , bingo = False
     , editModel = Edit.init
     , viewport = { height = 0, width = 0 }
-    , endpointUrl = "http://localhost:4000/endpoint"
+    , endpointUrl = "http://localhost:4000/state"
     , dataUploadState = Done
     }
 

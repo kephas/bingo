@@ -19,11 +19,11 @@ defmodule BackWeb.Router do
     get "/", PageController, :index
   end
 
-  scope "/endpoint", BackWeb do
+  scope "/state", BackWeb do
 	pipe_through :api
 
-	get "/", DraftController, :view
-	post "/", DraftController, :store
+	get "/", StateController, :view
+	post "/", StateController, :store
   end
 
   # Other scopes may use custom stacks.

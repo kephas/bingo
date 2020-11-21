@@ -544,8 +544,8 @@ withUploadState model state =
             model.editModel
     in
     { model
-        | dataUploadState = Failed
-        , editModel = { editModel | dataUploadState = Failed }
+        | dataUploadState = state
+        , editModel = { editModel | dataUploadState = state }
     }
 
 

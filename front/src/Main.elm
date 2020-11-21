@@ -444,13 +444,12 @@ update msg viewportModel =
                         |> Maybe.map (hasBingoAt num)
                         |> Maybe.withDefault False
             in
-            ( KnownViewport
+            KnownViewport
                 { model
                     | boards = newBoards
                     , bingo = hasBingo
                 }
-            , Cmd.none
-            )
+                |> viewportWithStoreDataCmd
 
         ( KnownViewport model, ChangePlayBoards newBoards ) ->
             changeBoards model newBoards
@@ -460,7 +459,7 @@ update msg viewportModel =
         ( KnownViewport model, RemovePlayBoard board ) ->
             changeBoards model (remove board model.boards)
                 |> KnownViewport
-                |> withNoCmd
+                |> viewportWithStoreDataCmd
 
         ( KnownViewport model, Navigate page ) ->
             KnownViewport { model | page = page } |> withNoCmd
@@ -484,21 +483,12 @@ update msg viewportModel =
                     newModel |> withCmd (Platform.Cmd.map EditMsg subCmd)
 
                 Edit.PlayDraft draft ->
-                    KnownViewport
-                        { newModelContent
-                            | page = PlayPage
-                            , boards =
-                                { title = draft.title
-                                , size = draft.size
-                                , cells = List.map toCell draft.choices
-                                }
-                                    :: newModelContent.boards
-                            , bingo = False
-                        }
-                        |> withNoCmd
+                    switchDraftToPlay newModelContent draft
+                        |> KnownViewport
+                        |> viewportWithStoreDataCmd
 
                 Edit.StoreData ->
-                    newModel |> withCmd (saveState newModelContent.endpointUrl newModelContent)
+                    newModel |> withCmd (storeDataCmd newModelContent)
 
         ( KnownViewport model, LocalStorage ( boards, drafts ) ) ->
             let
@@ -535,6 +525,35 @@ update msg viewportModel =
 
         ( KnownViewport model, GotUploadResponse response ) ->
             withNoCmd <| KnownViewport <| withUploadState model <| responseToDataUploadState response
+
+
+switchDraftToPlay : Model -> Edit.BingoDraft -> Model
+switchDraftToPlay model draft =
+    { model
+        | page = PlayPage
+        , boards =
+            { title = draft.title
+            , size = draft.size
+            , cells = List.map toCell draft.choices
+            }
+                :: model.boards
+        , bingo = False
+    }
+
+
+viewportWithStoreDataCmd : ViewportModel -> ( ViewportModel, Cmd Msg )
+viewportWithStoreDataCmd viewportModel =
+    case viewportModel of
+        UnknownViewport _ ->
+            viewportModel |> withNoCmd
+
+        KnownViewport model ->
+            viewportModel |> withCmd (storeDataCmd model)
+
+
+storeDataCmd : Model -> Cmd Msg
+storeDataCmd model =
+    saveState model.endpointUrl model
 
 
 withUploadState : Model -> DataUploadState -> Model

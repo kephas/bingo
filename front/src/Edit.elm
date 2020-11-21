@@ -128,7 +128,6 @@ type Msg
     | IncrementSize
     | ChangeNewSize String
     | ChangeNewTitle String
-    | SaveBingoDraft BingoDraft
     | ResetBingoDraft
     | ChangeViewMode ViewMode
     | ChangeTempChoice String
@@ -192,34 +191,31 @@ update msg model =
 
         AddNewChoice ->
             withEffect StoreData <|
-                updatePlayable <|
-                    case model.tempChoice of
-                        "" ->
-                            model
+                withTempDraftStored <|
+                    updatePlayable <|
+                        case model.tempChoice of
+                            "" ->
+                                model
 
-                        str ->
-                            { model
-                                | tempChoice = ""
-                                , newChoices = model.newChoices ++ [ str ]
-                            }
+                            str ->
+                                { model
+                                    | tempChoice = ""
+                                    , newChoices = model.newChoices ++ [ str ]
+                                }
 
         ChangeExistingChoice index new ->
-            { model | newChoices = setAt index new model.newChoices } |> withEffect StoreData
+            { model | newChoices = setAt index new model.newChoices }
+                |> withTempDraftStored
+                |> withEffect StoreData
 
         RemoveChoice index ->
             { model | newChoices = removeAt index model.newChoices }
                 |> updatePlayable
+                |> withTempDraftStored
                 |> withEffect StoreData
 
-        SaveBingoDraft draft ->
-            let
-                newModel =
-                    { model | storedBingoDrafts = Dict.insert draft.title draft model.storedBingoDrafts }
-            in
-            ( newModel, StoreData )
-
         ChangeNewTitle title ->
-            { model | newTitle = title } |> withNoEffect
+            { model | newTitle = title } |> withTempDraftStored |> withEffect StoreData
 
         ResetBingoDraft ->
             { model
@@ -264,6 +260,15 @@ update msg model =
                     { draft | choices = List.take (draft.size ^ 2) draft.choices }
             in
             ( model, PlayDraft playableDraft )
+
+
+withTempDraftStored : Model -> Model
+withTempDraftStored model =
+    let
+        draft =
+            draftFromModel model
+    in
+    { model | storedBingoDrafts = Dict.insert draft.title draft model.storedBingoDrafts }
 
 
 updatePlayable : Model -> Model
@@ -351,10 +356,6 @@ view model =
             , text = model.newTitle
             , placeholder = Nothing
             , label = In.labelLeft [] <| text "Title: "
-            }
-        , In.button []
-            { onPress = Just <| SaveBingoDraft <| draftFromModel model
-            , label = text "Save"
             }
         , let
             color =

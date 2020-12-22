@@ -1,10 +1,12 @@
 defmodule Back.Bingodraft do
   use Ecto.Schema
   alias Back.Repo
+  import Ecto.Query, only: [from: 2]
 
   schema "bingodrafts" do
 	field :title, :string
 	field :size, :integer
+	field :userid, :string
 	has_many :contents, Back.Bingodraftcontent
   end
 
@@ -12,14 +14,18 @@ defmodule Back.Bingodraft do
 	%{title: draft.title, size: draft.size, choices: Enum.map(draft.contents, &(&1.content))}
   end
 
-  def serializable_list() do
-	Repo.all(Back.Bingodraft) |> Repo.preload(:contents) |> Enum.map(&flatten/1)
+  def user_drafts(userid) do
+	from d in Back.Bingodraft, where: d.userid == ^userid
   end
 
-  def replace_all(new_drafts) do
+  def serializable_list(userid) do
+	Repo.all(user_drafts userid) |> Repo.preload(:contents) |> Enum.map(&flatten/1)
+  end
+
+  def replace_all(userid, new_drafts) do
 	result = Repo.transaction(fn ->
-	  Repo.delete_all(Back.Bingodraft)
-	  Enum.map(new_drafts, &unserialize/1)
+	  Repo.delete_all(user_drafts userid)
+	  Enum.map(new_drafts, &unserialize(userid, &1))
 	end)
 
 	case result do
@@ -31,8 +37,8 @@ defmodule Back.Bingodraft do
 	end
   end
 
-  def unserialize(skeleton) do
-	{:ok, draft} = Repo.insert %Back.Bingodraft{title: Map.get(skeleton, "title"), size: Map.get(skeleton, "size")}
+  def unserialize(userid, skeleton) do
+	{:ok, draft} = Repo.insert %Back.Bingodraft{title: Map.get(skeleton, "title"), size: Map.get(skeleton, "size"), userid: userid}
 	Map.get(skeleton, "choices")
 	|> Enum.map(&(Back.Bingodraftcontent.unserialize(draft, &1)))
   end

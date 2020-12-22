@@ -5,22 +5,30 @@ defmodule BackWeb.StateController do
   alias Back.Bingostate
   import Jason, only: [decode: 1]
 
-  def view(conn, _params) do
-    json conn, %{boards: Bingoboard.serializable_list,
-				 drafts: Bingodraft.serializable_list}
+  def view(conn, %{"id" => id}) do
+	if Back.User.exists(id) do
+      json conn, %{boards: Bingoboard.serializable_list(id),
+				   drafts: Bingodraft.serializable_list(id)}
+	else
+	  put_status(conn, :not_found)
+	end
   end
 
-  def store(conn, state) do
-	case Bingostate.replace(state) do
-	  :ok ->
-		conn
-		|> put_status(:ok)
-		|> json(true)
-
-	  :err ->
-		conn
-		|> put_status(:internal_server_error)
-		|> json(%{status: "err"})
+  def store(conn, %{"id" => id} = params) do
+	if Back.User.exists(id) do
+	  case Bingostate.replace(params) do
+		:ok ->
+		  conn
+		  |> put_status(:ok)
+		  |> json(true)
+		  
+		  :err ->
+		  conn
+		  |> put_status(:internal_server_error)
+		  |> json(%{status: "err"})
+	  end
+	else
+	  put_status(conn, :not_found)
 	end
   end
 end

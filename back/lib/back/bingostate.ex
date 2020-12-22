@@ -4,10 +4,10 @@ defmodule Back.Bingostate do
   alias Back.Bingodraft
 
   def replace(new_state) do
-	%{"boards" => new_boards, "drafts" => new_drafts} = new_state
+	%{"id" => userid, "boards" => new_boards, "drafts" => new_drafts} = new_state
 	result = Repo.transaction(fn ->
-	  Bingoboard.replace_all(new_boards)
-	  Bingodraft.replace_all(new_drafts)
+	  Bingoboard.replace_all(userid, new_boards)
+	  Bingodraft.replace_all(userid, new_drafts)
 	end)
 
 	case result do

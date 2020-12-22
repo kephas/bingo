@@ -1,25 +1,31 @@
 defmodule Back.Bingoboard do
   use Ecto.Schema
   alias Back.Repo
-
+  import Ecto.Query, only: [from: 2]
+  
   schema "bingoboards" do
 	field :title, :string
 	field :size, :integer
+	field :userid, :string
 	has_many :cells, Back.Bingoboardcell
   end
 
   def to_struct(board) do
-	%{title: board.title, size: board.size, cells: Enum.map(board.cells, &Back.Bingoboardcell.to_struct/1)}
+	%{title: board.title, size: board.size, userid: board.userid, cells: Enum.map(board.cells, &Back.Bingoboardcell.to_struct/1)}
   end
 
-  def serializable_list() do
-	Repo.all(Back.Bingoboard) |> Repo.preload(:cells) |> Enum.map(&to_struct/1)
+  def user_boards(userid) do
+	from b in Back.Bingoboard, where: b.userid == ^userid
   end
 
-  def replace_all(new_boards) do
+  def serializable_list(userid) do
+	Repo.all(user_boards userid) |> Repo.preload(:cells) |> Enum.map(&to_struct/1)
+  end
+
+  def replace_all(userid, new_boards) do
 	result = Repo.transaction(fn ->
-	  Repo.delete_all(Back.Bingoboard)
-	  Enum.map(new_boards, &unserialize/1)
+	  Repo.delete_all(user_boards userid)
+	  Enum.map(new_boards, &unserialize(userid, &1))
 	end)
 
 	case result do
@@ -31,8 +37,8 @@ defmodule Back.Bingoboard do
 	end
   end
 
-  def unserialize(skeleton) do
-	{:ok, board} = Repo.insert %Back.Bingoboard{title: Map.get(skeleton, "title"), size: Map.get(skeleton, "size")}
+  def unserialize(userid, skeleton) do
+	{:ok, board} = Repo.insert %Back.Bingoboard{title: Map.get(skeleton, "title"), size: Map.get(skeleton, "size"), userid: userid}
 	Map.get(skeleton, "cells")
 	|> Enum.map(&(Back.Bingoboardcell.unserialize(board, &1)))
   end

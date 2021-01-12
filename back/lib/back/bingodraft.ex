@@ -6,7 +6,8 @@ defmodule Back.Bingodraft do
   schema "bingodrafts" do
 	field :title, :string
 	field :size, :integer
-	field :userid, :string
+	field :ownertype, :string
+	field :ownerid, :string
 	has_many :contents, Back.Bingodraftcontent
   end
 
@@ -15,7 +16,7 @@ defmodule Back.Bingodraft do
   end
 
   def user_drafts(userid) do
-	from d in Back.Bingodraft, where: d.userid == ^userid
+	from d in Back.Bingodraft, where: d.ownertype == "user" and d.ownerid == ^userid
   end
 
   def serializable_list(userid) do
@@ -25,7 +26,7 @@ defmodule Back.Bingodraft do
   def replace_all(userid, new_drafts) do
 	result = Repo.transaction(fn ->
 	  Repo.delete_all(user_drafts userid)
-	  Enum.map(new_drafts, &unserialize(userid, &1))
+	  Enum.map(new_drafts, &unserialize("user", userid, &1))
 	end)
 
 	case result do
@@ -37,8 +38,8 @@ defmodule Back.Bingodraft do
 	end
   end
 
-  def unserialize(userid, skeleton) do
-	{:ok, draft} = Repo.insert %Back.Bingodraft{title: Map.get(skeleton, "title"), size: Map.get(skeleton, "size"), userid: userid}
+  def unserialize(ownertype, ownerid, skeleton) do
+	{:ok, draft} = Repo.insert %Back.Bingodraft{title: Map.get(skeleton, "title"), size: Map.get(skeleton, "size"), ownertype: ownertype, ownerid: ownerid}
 	Map.get(skeleton, "choices")
 	|> Enum.map(&(Back.Bingodraftcontent.unserialize(draft, &1)))
   end

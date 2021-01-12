@@ -34,9 +34,9 @@ defmodule BackWeb.StateController do
 	end
   end
 
-  def new_game(conn, %{"id" => id} = params) do
+  def new_game(conn, %{"id" => id, "draft" => draft} = params) do
 	if Back.User.exists(id) do
-	  case Game.create do
+	  case Game.create(draft) do
 		{:ok, game} ->
 		  json conn, %{game: BackWeb.Router.Helpers.game_url(BackWeb.Endpoint, :view, game.zcap)}
 

@@ -1,0 +1,57 @@
+name:                back-hs
+version:             0.1.0.0
+github:              "kephas/bingo"
+license:             BSD3
+author:              "Pierre Thierry"
+maintainer:          "pierre@nothos.net"
+copyright:           "2020–2021 Pierre Thierry, Simon Thierry, Aloïs Albiez"
+
+extra-source-files:
+- README.md
+
+# Metadata used when publishing your package
+# synopsis:            Short description of your package
+# category:            Web
+
+# To avoid duplicated efforts in documentation and dealing with the
+# complications of embedding Haddock markup inside cabal files, it is
+# common to point users to the README.md file.
+description:         Please see the README on GitHub at <https://github.com/githubuser/back-hs#readme>
+
+dependencies:
+- base >= 4.7 && < 5
+- aeson
+- servant-server
+- wai
+- warp
+
+library:
+  source-dirs: src
+
+executables:
+  back-hs-exe:
+    main:                Main.hs
+    source-dirs:         app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - base
+    - back-hs
+
+tests:
+  back-hs-test:
+    main:                Spec.hs
+    source-dirs:         test
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - base
+    - back-hs
+    - hspec
+    - hspec-wai
+    - hspec-wai-json
+    - aeson
